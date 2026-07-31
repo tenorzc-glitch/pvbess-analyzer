@@ -10,4 +10,10 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   status: 'draft' | 'complete';
+  /** 云端持久化的输入参数（可选，本地项目可能没有） */
+  params?: unknown;
+  /** 云端持久化的方案配置（可选） */
+  scenarios?: unknown;
+  /** 归属用户（云端自动注入 _openid，本地为 'local'） */
+  owner?: string;
 }

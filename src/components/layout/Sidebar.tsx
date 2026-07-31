@@ -5,6 +5,7 @@ import {
   LogoutOutlined,
   SettingOutlined,
   BulbOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from 'react-i18next';
@@ -15,16 +16,20 @@ const { Text } = Typography;
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signOut, isAdmin } = useAuth();
-  const { t } = useTranslation();
+  const { user, signOut, isAdmin, updateProfile } = useAuth();
+  const { t, i18n } = useTranslation();
 
   const isDark = user?.theme === 'dark';
+  const language = user?.language === 'en' ? 'en' : 'zh';
 
-  const toggleTheme = () => {
-    // Theme toggle via a direct DOM approach + localStorage
-    // In production, update via Supabase profiles
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-    window.location.reload();
+  const toggleTheme = async (checked: boolean) => {
+    await updateProfile({ theme: checked ? 'dark' : 'light' });
+  };
+
+  const toggleLanguage = async () => {
+    const next = language === 'zh' ? 'en' : 'zh';
+    await updateProfile({ language: next });
+    i18n.changeLanguage(next);
   };
 
   return (
@@ -74,11 +79,11 @@ export default function Sidebar() {
         borderTop: '1px solid rgba(255,255,255,0.1)',
       }}>
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
-          <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, display: 'block' }}>
-            {user?.email}
+          <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, display: 'block', wordBreak: 'break-all' }}>
+            {user?.email || '离线用户'}
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, display: 'block' }}>
-            {isAdmin ? '管理员' : '用户'}
+            {isAdmin ? t('nav.admin') : t('nav.user')}
           </Text>
           <Space style={{ width: '100%', justifyContent: 'space-between' }}>
             <Space size={4}>
@@ -87,9 +92,20 @@ export default function Sidebar() {
                 size="small"
                 checked={isDark}
                 onChange={toggleTheme}
-                checkedChildren="暗"
-                unCheckedChildren="亮"
+                checkedChildren={t('theme.dark')}
+                unCheckedChildren={t('theme.light')}
               />
+            </Space>
+            <Space size={4}>
+              <GlobalOutlined style={{ color: 'rgba(255,255,255,0.65)' }} />
+              <Button
+                type="text"
+                size="small"
+                onClick={toggleLanguage}
+                style={{ color: 'rgba(255,255,255,0.65)', padding: 0 }}
+              >
+                {language === 'zh' ? 'EN' : '中文'}
+              </Button>
             </Space>
             <Button
               type="text"

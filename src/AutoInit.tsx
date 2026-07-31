@@ -4,30 +4,35 @@ import { useProjectStore } from './store/useProjectStore';
 import { useProfileStore } from './store/useProfileStore';
 import { ProfileData } from './types';
 
-/** 初始化：创建默认项目 + 加载 profile 数据 */
+/** 初始化：加载项目列表 + profile 数据 */
 export default function AutoInit() {
   const navigate = useNavigate();
-  const { projects, addProject } = useProjectStore();
+  const { loadProjects } = useProjectStore();
   const { setProfile } = useProfileStore();
 
   useEffect(() => {
-    if (projects.length === 0) {
-      const project = {
-        id: 'default-brazil',
-        name: '巴西咖啡农场 500kWp',
-        country: 'brazil' as const,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'draft' as const,
-      };
-      addProject(project);
-      navigate('/project/default-brazil');
-    }
+    loadProjects().then(() => {
+      const { projects, cloudMode } = useProjectStore.getState();
+      // 离线模式且无任何项目时，创建默认演示项目
+      if (!cloudMode && projects.length === 0) {
+        const project = {
+          id: 'default-brazil',
+          name: '巴西咖啡农场 500kWp',
+          country: 'brazil' as const,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          status: 'draft' as const,
+        };
+        useProjectStore.getState().addProject(project);
+        navigate('/project/default-brazil');
+      }
+    });
 
     // 加载 profile
     loadProfile().then(setProfile).catch(() => {
       setProfile(builtinProfile());
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return null;

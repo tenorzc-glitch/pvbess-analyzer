@@ -14,10 +14,12 @@
     "registerBtn": "注册",
     "emailRequired": "请输入邮箱",
     "passwordRequired": "请输入密码",
-    "passwordMinLength": "密码至少6位",
+    "passwordMinLength": "密码至少8位，需包含字母和数字",
     "confirmRequired": "请确认密码",
     "passwordMismatch": "两次密码不一致",
-    "offlineNotSupported": "离线模式不支持注册，请使用任意邮箱和密码登录"
+    "offlineNotSupported": "离线模式不支持注册，请使用任意邮箱和密码登录",
+    "offlineTip": "直接点击\"登录\"无需填写任何信息即可进入",
+    "adminTip": "管理员功能需在登录时输入激活码 934676"
   },
   "nav": {
     "projects": "项目列表",
@@ -29,6 +31,7 @@
     "compare": "品牌对比",
     "report": "投资报告",
     "admin": "管理面板",
+    "user": "用户",
     "logout": "退出登录",
     "settings": "设置"
   },
@@ -43,7 +46,8 @@
     "copy": "复制",
     "noProjects": "暂无项目，点击\"新建项目\"开始",
     "notFound": "项目未找到",
-    "back": "返回"
+    "back": "返回",
+    "createdAt": "创建于"
   },
   "country": {
     "brazil": "巴西 Brazil",
@@ -201,11 +205,20 @@
     "light": "浅色模式",
     "dark": "深色模式"
   },
+  "sync": {
+    "offline": "当前离线模式，数据仅保存在本机浏览器中（未配置 CloudBase 或连接失败）",
+    "offlineCloud": "云端连接失败，已切换为本地模式，数据暂存本机"
+  },
   "admin": {
     "title": "管理面板",
     "users": "用户管理",
     "projects": "项目管理",
     "noUsers": "暂无用户",
+    "noPermission": "无权限访问",
+    "noPermissionTip": "仅管理员可以访问此页面",
+    "offlineTip": "当前离线模式，管理功能不可用",
+    "projectCount": "项目数",
+    "projectsHint": "项目详情请在左侧\"项目列表\"中查看",
     "deleteUser": "删除用户",
     "deleteUserConfirm": "确定删除该用户及其所有项目？"
   },

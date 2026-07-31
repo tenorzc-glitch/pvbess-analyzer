@@ -14,10 +14,12 @@
     "registerBtn": "Register",
     "emailRequired": "Please enter email",
     "passwordRequired": "Please enter password",
-    "passwordMinLength": "Password min 6 characters",
+    "passwordMinLength": "Password must be 8-32 chars with letters and numbers",
     "confirmRequired": "Please confirm password",
     "passwordMismatch": "Passwords do not match",
-    "offlineNotSupported": "Registration not available offline. Use any email and password to login."
+    "offlineNotSupported": "Registration not available offline. Use any email and password to login.",
+    "offlineTip": "Click \"Login\" directly to enter without filling in anything",
+    "adminTip": "Admin: enter activation code 934676 at login"
   },
   "nav": {
     "projects": "Projects",
@@ -29,6 +31,7 @@
     "compare": "Compare",
     "report": "Report",
     "admin": "Admin Panel",
+    "user": "User",
     "logout": "Logout",
     "settings": "Settings"
   },
@@ -43,7 +46,8 @@
     "copy": "Copy",
     "noProjects": "No projects yet. Click \"New Project\" to start.",
     "notFound": "Project not found",
-    "back": "Back"
+    "back": "Back",
+    "createdAt": "Created on"
   },
   "country": {
     "brazil": "Brazil",
@@ -201,11 +205,20 @@
     "light": "Light Mode",
     "dark": "Dark Mode"
   },
+  "sync": {
+    "offline": "Offline mode. Data is stored only in this browser (CloudBase not configured or unreachable).",
+    "offlineCloud": "Cloud sync failed. Switched to local mode; data is cached locally."
+  },
   "admin": {
     "title": "Admin Panel",
     "users": "User Management",
     "projects": "Project Management",
     "noUsers": "No users",
+    "noPermission": "Access Denied",
+    "noPermissionTip": "Admin access only",
+    "offlineTip": "Offline mode. Admin features unavailable.",
+    "projectCount": "Projects",
+    "projectsHint": "Open \"Projects\" from the sidebar to manage projects.",
     "deleteUser": "Delete User",
     "deleteUserConfirm": "Delete this user and all their projects?"
   },

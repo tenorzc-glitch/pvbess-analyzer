@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Card, Button, Space, Modal, Input, Select, Typography, Empty } from 'antd';
-import { PlusOutlined, ProjectOutlined, CopyOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
+import { Card, Button, Space, Modal, Input, Select, Typography, Empty, Alert } from 'antd';
+import { PlusOutlined, ProjectOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../../store/useProjectStore';
+import { useTranslation } from 'react-i18next';
 import { Project, CountryCode } from '../../types';
 
 const { Title, Text } = Typography;
@@ -18,42 +19,60 @@ const COUNTRY_OPTIONS: { value: CountryCode; label: string }[] = [
 
 export default function ProjectList() {
   const navigate = useNavigate();
-  const { projects, addProject, deleteProject } = useProjectStore();
+  const { t } = useTranslation();
+  const { projects, syncState, cloudMode, loadProjects, addProject, deleteProject } = useProjectStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCountry, setNewCountry] = useState<CountryCode>('brazil');
+  const [creating, setCreating] = useState(false);
 
-  const handleCreate = () => {
+  // 进入页面时加载项目（在线从云端，离线从缓存）
+  useEffect(() => {
+    loadProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCreate = async () => {
     if (!newName.trim()) return;
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    setCreating(true);
     const project: Project = {
-      id,
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       name: newName.trim(),
       country: newCountry,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'draft',
     };
-    addProject(project);
+    const saved = await addProject(project);
+    setCreating(false);
     setModalOpen(false);
     setNewName('');
-    navigate(`/project/${id}`);
+    navigate(`/project/${saved.id}`);
   };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>项目列表</Title>
+        <Title level={3} style={{ margin: 0 }}>{t('project.list')}</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-          新建项目
+          {t('project.create')}
         </Button>
       </div>
 
+      {syncState === 'offline' && (
+        <Alert
+          type="warning"
+          showIcon
+          message={cloudMode ? t('sync.offlineCloud') : t('sync.offline')}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       {projects.length === 0 ? (
         <Card>
-          <Empty description={'暂无项目，点击"新建项目"开始'}>
+          <Empty description={t('project.noProjects')}>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-              新建项目
+              {t('project.create')}
             </Button>
           </Empty>
         </Card>
@@ -65,15 +84,14 @@ export default function ProjectList() {
               hoverable
               onClick={() => navigate(`/project/${p.id}`)}
               actions={[
-                <CopyOutlined key="copy" onClick={(e) => { e.stopPropagation(); }} />,
                 <DeleteOutlined
                   key="delete"
                   style={{ color: '#ff4d4f' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     Modal.confirm({
-                      title: '确认删除',
-                      content: `确定删除项目"${p.name}"？`,
+                      title: t('project.deleteConfirm'),
+                      content: `"${p.name}"`,
                       onOk: () => deleteProject(p.id),
                     });
                   }}
@@ -89,7 +107,7 @@ export default function ProjectList() {
                       {COUNTRY_OPTIONS.find(c => c.value === p.country)?.label || p.country}
                     </Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      创建于 {new Date(p.createdAt).toLocaleDateString('zh-CN')}
+                      {t('project.createdAt')} {new Date(p.createdAt).toLocaleDateString('zh-CN')}
                     </Text>
                   </Space>
                 }
@@ -100,18 +118,19 @@ export default function ProjectList() {
       )}
 
       <Modal
-        title="新建项目"
+        title={t('project.create')}
         open={modalOpen}
         onOk={handleCreate}
         onCancel={() => setModalOpen(false)}
-        okText="创建"
-        cancelText="取消"
+        okText={t('common.create')}
+        cancelText={t('common.cancel')}
+        confirmLoading={creating}
       >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Text strong>项目名称</Text>
+            <Text strong>{t('project.name')}</Text>
             <Input
-              placeholder="例如：墨西哥光伏农场 500kW"
+              placeholder={t('project.namePlaceholder')}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onPressEnter={handleCreate}
@@ -119,7 +138,7 @@ export default function ProjectList() {
             />
           </div>
           <div>
-            <Text strong>国家/地区</Text>
+            <Text strong>{t('project.country')}</Text>
             <Select
               value={newCountry}
               onChange={setNewCountry}

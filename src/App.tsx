@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import { HashRouter } from 'react-router-dom';
 import zhCN from 'antd/locale/zh_CN';
@@ -7,12 +7,17 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import AuthGuard from './components/auth/AuthGuard';
 import AppRoutes from './routes';
 import AutoInit from './AutoInit';
-import './i18n';
+import i18n from './i18n';
 
 function ThemedApp() {
   const { user } = useAuth();
   const isDark = user?.theme === 'dark';
   const isEnglish = user?.language === 'en';
+
+  // 用户语言变化时同步 i18n
+  useEffect(() => {
+    i18n.changeLanguage(isEnglish ? 'en' : 'zh');
+  }, [isEnglish]);
 
   const themeConfig = useMemo(() => ({
     algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
