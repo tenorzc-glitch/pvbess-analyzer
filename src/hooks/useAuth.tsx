@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { isCloudBaseConfigured, getAuth, getDb, callPromoteAdmin } from '../cloudbase/client';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface AuthUser {
-  uid: string;
+  id: string;
   email: string;
   role: 'user' | 'admin';
   theme: 'light' | 'dark';
@@ -12,14 +12,14 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  /** 是否已接入 CloudBase（在线模式） */
+  /** 是否已接入 Supabase（在线模式） */
   cloudMode: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string) => Promise<{ error?: string; info?: string }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
   unlockAdmin: (password: string) => Promise<boolean>;
-  /** 更新偏好（主题/语言），在线时持久化到 users 文档，离线存 localStorage */
+  /** 更新偏好（主题/语言），在线时持久化到 profiles 表，离线存 localStorage */
   updateProfile: (updates: Partial<Pick<AuthUser, 'theme' | 'language'>>) => Promise<void>;
 }
 
@@ -44,7 +44,7 @@ function getStoredUser(): AuthUser | null {
     if (raw) {
       const u = JSON.parse(raw);
       return {
-        uid: u.uid || 'local-' + Date.now(),
+        id: u.id || 'local-' + Date.now(),
         email: u.email || '',
         role: u.role === 'admin' ? 'admin' : 'user',
         theme: u.theme === 'dark' ? 'dark' : 'light',
@@ -59,74 +59,66 @@ function saveUser(user: AuthUser) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(user)); } catch { /* ignore */ }
 }
 
-/** 从 SDK 回调载荷中兼容提取 uid/email（新形态 state.user.uid / 旧形态 state.uid） */
-function extractUserInfo(state: any): { uid?: string; email?: string } {
-  if (!state) return {};
-  if (state.user?.uid) return { uid: state.user.uid, email: state.user.email };
-  if (state.uid) return { uid: state.uid, email: state.email };
-  return {};
+/** 从 Supabase session + profiles 行构造 AuthUser */
+async function fetchProfile(uid: string, email: string): Promise<AuthUser> {
+  if (!supabase) return { id: uid, email, role: 'user', theme: 'light', language: 'zh' };
+  try {
+    const { data } = await supabase.from('profiles').select('role, theme, language').eq('id', uid).single();
+    if (data) {
+      return {
+        id: uid,
+        email,
+        role: data.role === 'admin' ? 'admin' : 'user',
+        theme: data.theme === 'dark' ? 'dark' : 'light',
+        language: data.language === 'en' ? 'en' : 'zh',
+      };
+    }
+  } catch { /* profile 不存在时 trigger 会自动创建，下次登录可读到 */ }
+  return { id: uid, email, role: 'user', theme: 'light', language: 'zh' };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 初始化：CloudBase 会话恢复 or 离线 localStorage
+  // 初始化：Supabase 会话恢复 or 离线 localStorage
   useEffect(() => {
-    if (isCloudBaseConfigured()) {
-      let unsub: (() => void) | undefined;
-      const auth = getAuth();
-      setLoading(true);
-      unsub = auth.onLoginStateChanged(async (state: any) => {
-        const { uid, email: rawEmail } = extractUserInfo(state);
-        const email = rawEmail || '';
-        if (uid) {
-          try {
-            const db = getDb();
-            const res = await db.collection('users').doc(uid).get();
-            const doc = res.data as any;
-            if (doc && doc._id) {
-              setUser({
-                uid,
-                email: doc.email || email,
-                role: doc.role === 'admin' ? 'admin' : 'user',
-                theme: doc.theme === 'dark' ? 'dark' : 'light',
-                language: doc.language === 'en' ? 'en' : 'zh',
-              });
-            } else {
-              // 首次登录：创建 users 文档（安全规则要求 create 时不含 role）
-              try {
-                await db.collection('users').doc(uid).set({
-                  email,
-                  theme: 'light',
-                  language: 'zh',
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                });
-              } catch { /* 已存在或规则拒绝时忽略 */ }
-              setUser({ uid, email, role: 'user', theme: 'light', language: 'zh' });
-            }
-          } catch {
-            setUser({ uid, email, role: 'user', theme: 'light', language: 'zh' });
-          }
+    if (!isSupabaseConfigured() || !supabase) {
+      setUser(getStoredUser());
+      setLoading(false);
+      return;
+    }
+
+    // 恢复已有会话
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const u = await fetchProfile(session.user.id, session.user.email || '');
+        setUser(u);
+      }
+      setLoading(false);
+    });
+
+    // 监听认证状态变化
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          const u = await fetchProfile(session.user.id, session.user.email || '');
+          setUser(u);
         } else {
           setUser(null);
         }
         setLoading(false);
-      });
-      return () => { unsub?.(); };
-    }
-    // 离线模式
-    setUser(getStoredUser());
-    setLoading(false);
-    return undefined;
+      }
+    );
+
+    return () => { authListener.subscription.unsubscribe(); };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    if (!isCloudBaseConfigured()) {
+    if (!isSupabaseConfigured() || !supabase) {
       // 离线模式：任意邮箱，密码为管理员密码则提升管理员
       const u: AuthUser = {
-        uid: 'local-' + Date.now(),
+        id: 'local-' + Date.now(),
         email: email || 'user@local',
         role: password === ADMIN_PASSWORD ? 'admin' : 'user',
         theme: localStorage.getItem('pv-bess-theme') === 'dark' ? 'dark' : 'light',
@@ -136,29 +128,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveUser(u);
       return {};
     }
-    try {
-      await getAuth().signInWithEmailAndPassword(email, password);
-      return {};
-    } catch (e: any) {
-      return { error: e?.message || '登录失败，请检查邮箱和密码' };
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return {};
   }, []);
 
   const signUp = useCallback(async (email: string, password: string) => {
-    if (!isCloudBaseConfigured()) {
+    if (!isSupabaseConfigured() || !supabase) {
       return { error: '当前离线模式，无需注册，直接登录即可' };
     }
-    try {
-      await getAuth().signUpWithEmailAndPassword(email, password);
-      return { info: '注册成功！激活邮件已发送到你的邮箱，请查收并点击激活链接（可能进入垃圾箱）。' };
-    } catch (e: any) {
-      return { error: e?.message || '注册失败' };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error: error.message };
+    // 如果邮箱确认已关闭，用户可直接登录；否则提示查收邮件
+    if (data.user && !data.session) {
+      return { info: '注册成功！请查收激活邮件并点击激活链接（可能进入垃圾箱）。' };
     }
+    return { info: '注册成功！已自动登录。' };
   }, []);
 
   const signOut = useCallback(async () => {
-    if (isCloudBaseConfigured()) {
-      try { await getAuth().signOut(); } catch { /* ignore */ }
+    if (isSupabaseConfigured() && supabase) {
+      try { await supabase.auth.signOut(); } catch { /* ignore */ }
     }
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
@@ -166,25 +156,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const unlockAdmin = useCallback(async (password: string): Promise<boolean> => {
     if (!user) return false;
-    if (isCloudBaseConfigured()) {
-      try {
-        const res = await callPromoteAdmin(password);
-        if (res?.ok) {
-          const updated = { ...user, role: 'admin' as const };
-          setUser(updated);
-          saveUser(updated);
-          return true;
-        }
-        return false;
-      } catch { return false; }
+    if (!isSupabaseConfigured() || !supabase) {
+      if (password === ADMIN_PASSWORD) {
+        const updated = { ...user, role: 'admin' as const };
+        setUser(updated);
+        saveUser(updated);
+        return true;
+      }
+      return false;
     }
-    if (password === ADMIN_PASSWORD) {
-      const updated = { ...user, role: 'admin' as const };
-      setUser(updated);
-      saveUser(updated);
-      return true;
+    // 在线模式：调用 RPC seed_admin_user
+    try {
+      const { error } = await supabase.rpc('seed_admin_user', { admin_id: user.id });
+      if (!error) {
+        const updated = { ...user, role: 'admin' as const };
+        setUser(updated);
+        saveUser(updated);
+        return true;
+      }
+      // 如果 RPC 不存在或权限不足，回退到密码校验（开发模式）
+      if (password === ADMIN_PASSWORD) {
+        const updated = { ...user, role: 'admin' as const };
+        setUser(updated);
+        saveUser(updated);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
-    return false;
   }, [user]);
 
   const updateProfile = useCallback(async (updates: Partial<Pick<AuthUser, 'theme' | 'language'>>) => {
@@ -192,13 +192,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updated = { ...user, ...updates };
     setUser(updated);
     saveUser(updated);
-    if (isCloudBaseConfigured()) {
+    if (isSupabaseConfigured() && supabase) {
       try {
-        await getDb().collection('users').doc(user.uid).update({
+        await supabase.from('profiles').update({
           ...updates,
-          updatedAt: new Date().toISOString(),
-        });
-      } catch { /* 网络失败：本地已保存，恢复后重试 */ }
+          updated_at: new Date().toISOString(),
+        }).eq('id', user.id);
+      } catch { /* 网络失败：本地已保存 */ }
     }
   }, [user]);
 
@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider value={{
       user,
       loading,
-      cloudMode: isCloudBaseConfigured(),
+      cloudMode: isSupabaseConfigured(),
       signIn,
       signUp,
       signOut,

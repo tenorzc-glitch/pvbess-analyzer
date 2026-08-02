@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Card, Typography, Empty, Tag, Table, Space, Alert } from 'antd';
 import { useAuth } from '../../hooks/useAuth';
-import { isCloudBaseConfigured, getDb } from '../../cloudbase/client';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { useTranslation } from 'react-i18next';
 
 const { Title, Text } = Typography;
 
 interface AdminUser {
-  uid: string;
+  id: string;
   email: string;
   role: string;
-  createdAt?: string;
+  created_at?: string;
   projectCount: number;
 }
 
@@ -22,29 +22,29 @@ export default function AdminPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAdmin || !isCloudBaseConfigured()) return;
+    if (!isAdmin || !isSupabaseConfigured() || !supabase) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
     (async () => {
       try {
-        const db = getDb();
-        const [userRes, projectRes] = await Promise.all([
-          db.collection('users').limit(100).get(),
-          db.collection('projects').limit(500).get(),
+        const [profileRes, projectRes] = await Promise.all([
+          supabase.from('profiles').select('id, email, role, created_at').limit(100),
+          supabase.from('projects').select('user_id').limit(500),
         ]);
         if (cancelled) return;
+        if (profileRes.error) throw profileRes.error;
         const projectCountByUid = new Map<string, number>();
         (projectRes.data || []).forEach((p: any) => {
-          const uid = p._openid;
+          const uid = p.user_id;
           projectCountByUid.set(uid, (projectCountByUid.get(uid) || 0) + 1);
         });
-        const list: AdminUser[] = (userRes.data || []).map((d: any) => ({
-          uid: d._id,
-          email: d.email || d._id,
+        const list: AdminUser[] = (profileRes.data || []).map((d: any) => ({
+          id: d.id,
+          email: d.email || d.id,
           role: d.role === 'admin' ? 'admin' : 'user',
-          createdAt: d.createdAt,
-          projectCount: projectCountByUid.get(d._id) || 0,
+          created_at: d.created_at,
+          projectCount: projectCountByUid.get(d.id) || 0,
         }));
         setUsers(list);
       } catch (e: any) {
@@ -69,7 +69,7 @@ export default function AdminPanel() {
     <div>
       <Title level={3}>{t('admin.title')}</Title>
 
-      {!isCloudBaseConfigured() && (
+      {!isSupabaseConfigured() && (
         <Alert type="info" showIcon message={t('admin.offlineTip')} style={{ marginBottom: 16 }} />
       )}
 
@@ -80,19 +80,19 @@ export default function AdminPanel() {
           <Empty description={t('admin.noUsers')} />
         ) : (
           <Table<AdminUser>
-            rowKey="uid"
+            rowKey="id"
             size="small"
             loading={loading}
             dataSource={users}
             pagination={{ pageSize: 10 }}
             columns={[
               {
-                title: '邮箱 / UID',
+                title: '邮箱 / ID',
                 dataIndex: 'email',
                 render: (v: string, r) => (
                   <Space direction="vertical" size={0}>
                     <Text>{v}</Text>
-                    <Text type="secondary" style={{ fontSize: 11 }}>{r.uid}</Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>{r.id}</Text>
                   </Space>
                 ),
               },
@@ -113,7 +113,7 @@ export default function AdminPanel() {
               },
               {
                 title: '注册时间',
-                dataIndex: 'createdAt',
+                dataIndex: 'created_at',
                 width: 140,
                 render: (v?: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-',
               },
