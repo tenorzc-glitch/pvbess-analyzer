@@ -144,6 +144,15 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 10. RLS Policies
 -- ============================================================
 
+-- 安全助手函数：判断当前用户是否为管理员（SECURITY DEFINER 避免递归）
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 -- Profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -153,15 +162,16 @@ CREATE POLICY "Users read own profile" ON public.profiles
 
 DROP POLICY IF EXISTS "Admin read all profiles" ON public.profiles;
 CREATE POLICY "Admin read all profiles" ON public.profiles
-  FOR SELECT USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
-  );
+  FOR SELECT USING (public.is_admin());
 
 DROP POLICY IF EXISTS "Admin update profiles" ON public.profiles;
 CREATE POLICY "Admin update profiles" ON public.profiles
-  FOR UPDATE USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
-  );
+  FOR UPDATE USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Users update own profile" ON public.profiles;
+CREATE POLICY "Users update own profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
 
 -- Projects
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
@@ -173,9 +183,7 @@ CREATE POLICY "Users CRUD own projects" ON public.projects
 
 DROP POLICY IF EXISTS "Admin CRUD all projects" ON public.projects;
 CREATE POLICY "Admin CRUD all projects" ON public.projects
-  FOR ALL USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
-  );
+  FOR ALL USING (public.is_admin());
 
 -- Profile Data
 ALTER TABLE public.profile_data ENABLE ROW LEVEL SECURITY;
@@ -208,9 +216,7 @@ CREATE POLICY "Users access own sim results" ON public.simulation_results
 
 DROP POLICY IF EXISTS "Admin access all sim results" ON public.simulation_results;
 CREATE POLICY "Admin access all sim results" ON public.simulation_results
-  FOR ALL USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
-  );
+  FOR ALL USING (public.is_admin());
 
 -- Finance Results
 ALTER TABLE public.finance_results ENABLE ROW LEVEL SECURITY;
@@ -224,9 +230,7 @@ CREATE POLICY "Users access own finance results" ON public.finance_results
 
 DROP POLICY IF EXISTS "Admin access all finance results" ON public.finance_results;
 CREATE POLICY "Admin access all finance results" ON public.finance_results
-  FOR ALL USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
-  );
+  FOR ALL USING (public.is_admin());
 
 -- Brand Params
 ALTER TABLE public.brand_params ENABLE ROW LEVEL SECURITY;
@@ -237,6 +241,4 @@ CREATE POLICY "All users read brand params" ON public.brand_params
 
 DROP POLICY IF EXISTS "Admin manage brand params" ON public.brand_params;
 CREATE POLICY "Admin manage brand params" ON public.brand_params
-  FOR ALL USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
-  );
+  FOR ALL USING (public.is_admin());

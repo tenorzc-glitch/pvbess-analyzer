@@ -3,6 +3,8 @@ import { Card, Button, Space, Modal, Input, Select, Typography, Empty, Alert } f
 import { PlusOutlined, ProjectOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../../store/useProjectStore';
+import { useParamsStore } from '../../store/useParamsStore';
+import { useSimulationStore } from '../../store/useSimulationStore';
 import { useTranslation } from 'react-i18next';
 import { Project, CountryCode } from '../../types';
 
@@ -42,6 +44,8 @@ export default function ProjectList() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'draft',
+      params: useParamsStore.getState().params,
+      scenarios: useSimulationStore.getState().scenarios,
     };
     const saved = await addProject(project);
     setCreating(false);

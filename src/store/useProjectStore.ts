@@ -85,6 +85,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return project;
     }
     try {
+      // 获取当前登录用户 ID（RLS 策略要求 user_id 匹配 auth.uid()）
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('未登录');
       const { data, error } = await supabase.from('projects').insert({
         name: project.name,
         country: project.country,
@@ -92,8 +95,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         status: project.status,
         params: project.params || {},
         scenarios: project.scenarios || null,
-        created_at: project.createdAt,
-        updated_at: project.updatedAt,
+        user_id: currentUser.id,
       }).select().single();
       if (error) throw error;
       const saved = mapRow(data);

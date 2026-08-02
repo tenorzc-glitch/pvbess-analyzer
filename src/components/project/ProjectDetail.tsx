@@ -31,10 +31,10 @@ export default function ProjectDetail() {
 
   // 进入项目时：从云端数据初始化参数与方案配置
   useEffect(() => {
-    if (project?.params) {
+    if (project?.params && typeof project.params === 'object' && Object.keys(project.params).length > 0) {
       try { setParams(project.params as any); } catch { /* 数据异常时保持默认 */ }
     }
-    if (project?.scenarios && Array.isArray(project.scenarios)) {
+    if (project?.scenarios && Array.isArray(project.scenarios) && project.scenarios.length > 0) {
       try { setScenarios(project.scenarios as any); } catch { /* 保持默认 */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
