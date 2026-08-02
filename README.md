@@ -26,7 +26,7 @@ npm run dev
 
 ```
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
+VITE_SUPABASE_ANON_KEY=sb_publishable_xxx
 ```
 
 ## 数据库 Schema
@@ -39,7 +39,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxx
 2. 在 Vercel 中导入项目
 3. 配置环境变量：
    - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - `VITE_SUPABASE_ANON_KEY`
 4. 部署完成
 
 ## 项目结构
@@ -51,7 +51,7 @@ src/
 ├── hooks/             # 自定义 hooks（含 auth, i18n, simulation）
 ├── i18n/              # 中英文翻译
 ├── store/             # Zustand 状态管理
-├── supabase/          # Supabase 客户端
+├── lib/               # Supabase 客户端
 └── types/             # TypeScript 类型定义
 ```
 

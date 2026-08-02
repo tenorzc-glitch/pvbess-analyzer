@@ -206,7 +206,7 @@
     "dark": "Dark Mode"
   },
   "sync": {
-    "offline": "Offline mode. Data is stored only in this browser (CloudBase not configured or unreachable).",
+    "offline": "Offline mode. Data is stored only in this browser (Supabase not configured or unreachable).",
     "offlineCloud": "Cloud sync failed. Switched to local mode; data is cached locally."
   },
   "admin": {
