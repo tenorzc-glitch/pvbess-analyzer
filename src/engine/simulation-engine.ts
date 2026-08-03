@@ -15,6 +15,17 @@ import {
 /** 每月天数 */
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
+/** 计算某月光储有效工作天数 = 当月天数 - 月检修天数 - 雨季停运天数（若该月为雨季） */
+export function effectiveWorkDays(params: InputParams, month: number): number {
+  const base = DAYS_PER_MONTH[month - 1];
+  const wd = params.workDays;
+  if (!wd) return base;
+  const maintenance = wd.maintenanceDaysPerMonth?.[month - 1] || 0;
+  const rainyIdx = wd.rainyMonths?.indexOf(month) ?? -1;
+  const rainyOutage = rainyIdx >= 0 ? (wd.rainyOutageDays?.[rainyIdx] || 0) : 0;
+  return Math.max(base - maintenance - rainyOutage, 0);
+}
+
 // ─── 调度核心 ───────────────────────────────────────────────
 
 /** 运行单个场景的完整年度仿真 */
@@ -54,6 +65,9 @@ function runMonthlySimulation(
   const pcsPower = scenario.pcsPower_kW;
   const pvCapacity = scenario.pvCapacity_kWp;
   const days = DAYS_PER_MONTH[month - 1];
+  // 光储有效工作天数；停运日负荷由电网/油机承担（PV=0、储能停用）
+  const workDays = effectiveWorkDays(params, month);
+  const offDays = Math.max(days - workDays, 0);
 
   // 初始化状态
   let state: DispatchState = {
@@ -83,8 +97,36 @@ function runMonthlySimulation(
     };
   }
 
-  // 计算月度汇总
-  const totals = computeMonthTotals(intervals, days, stepH);
+  // 工作日汇总（典型日 × 工作天数）
+  const totals = computeMonthTotals(intervals, workDays, stepH);
+
+  // 停运日：同样负荷曲线，PV=0、储能停用（pcs=0），由电网/油机供电
+  if (offDays > 0) {
+    let offState: DispatchState = { soc: params.bess.socInitial, prevDGOn: false };
+    const offIntervals: DispatchInterval[] = [];
+    for (let t = 0; t < monthProfile.length; t++) {
+      const prof = monthProfile[t];
+      const result = dispatchInterval(
+        params, scenario, prof, offState, stepH,
+        1 /* bessCapacity 置 1 避免除零，pcs=0 使充放为 0 */,
+        0 /* pcsPower */,
+        0 /* pvCapacity */,
+        dgMinStable, dgRatedPower, dgEfficiency
+      );
+      offIntervals.push(result);
+      offState = { soc: result.socEnd, prevDGOn: result.dieselGen > 0 };
+    }
+    const offTotals = computeMonthTotals(offIntervals, offDays, stepH);
+    totals.pv_kWh += offTotals.pv_kWh;
+    totals.load_kWh += offTotals.load_kWh;
+    totals.grid_kWh += offTotals.grid_kWh;
+    totals.diesel_kWh += offTotals.diesel_kWh;
+    totals.dieselFuel_L += offTotals.dieselFuel_L;
+    totals.curtailment_kWh += offTotals.curtailment_kWh;
+    totals.bessCharge_kWh += offTotals.bessCharge_kWh;
+    totals.bessDischarge_kWh += offTotals.bessDischarge_kWh;
+    totals.unserved_kWh += offTotals.unserved_kWh;
+  }
 
   return { month, days, intervals, totals };
 }

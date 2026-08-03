@@ -4,6 +4,7 @@ import { Card, Select, Row, Col, Table, Statistic, Spin, Typography, Empty, Radi
 import ReactECharts from 'echarts-for-react';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useParamsStore } from '../../store/useParamsStore';
+import { useProfileStore } from '../../store/useProfileStore';
 import { EngineMonthResult } from '../../engine/types';
 
 const { Text } = Typography;
@@ -14,6 +15,7 @@ export default function ResultsPanel() {
 
   const { results, scenarios, isRunning } = useSimulationStore();
   const { params } = useParamsStore();
+  const { profile } = useProfileStore();
   const [selectedScenario, setSelectedScenario] = useState(4);
   const [selectedMonth, setSelectedMonth] = useState(1);
   const [timeScale, setTimeScale] = useState<'day' | 'month' | 'year'>('day');
@@ -52,7 +54,7 @@ export default function ResultsPanel() {
     return {
       title: { text: `${MONTHS[selectedMonth - 1]} ${t('results.dispatch')}`, left: 'center' },
       tooltip: { trigger: 'axis' },
-      legend: { bottom: 0, data: [t('results.pvGen'), t('results.bessCharge'), t('results.bessDischarge'), t('results.gridImport'), t('results.dieselGen'), t('results.soc')] },
+      legend: { bottom: 0, data: [t('results.load'), t('results.pvGen'), t('results.bessCharge'), t('results.bessDischarge'), t('results.gridImport'), t('results.dieselGen'), t('results.soc')] },
       grid: { left: 60, right: 60, top: 50, bottom: 40 },
       xAxis: {
         type: 'category',
@@ -79,6 +81,16 @@ export default function ResultsPanel() {
         },
       ],
       series: [
+        {
+          name: t('results.load'), type: 'line', data: intervals.map(d => +(d.netLoad + d.pvGen).toFixed(2)),
+          lineStyle: { color: '#8c8c8c', width: 2, type: 'dashed' }, itemStyle: { color: '#8c8c8c' },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            data: [{ yAxis: params.grid.contractDemand_kW, label: { formatter: `${t('results.demandLine')} ${params.grid.contractDemand_kW}kW`, position: 'insideEndTop' } }],
+            lineStyle: { color: '#fa541c', type: 'dotted', width: 2 },
+          },
+        },
         {
           name: t('results.pvGen'), type: 'line', data: intervals.map(d => d.pvGen),
           lineStyle: { color: '#faad14' }, itemStyle: { color: '#faad14' },
@@ -233,6 +245,66 @@ export default function ResultsPanel() {
     };
   };
 
+  // ─── 分时电价曲线（所选月份，96 个 15min 点） ───
+  const getTouChartOption = () => {
+    const monthProfile = profile?.[selectedMonth - 1] ?? [];
+    const times = Array.from({ length: 96 }, (_, i) => {
+      const h = Math.floor(i / 4);
+      const m = (i % 4) * 15;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    });
+    // flat 模式用统一电价；tou 模式优先用 profile 中的分时电价
+    const prices = monthProfile.length === 96
+      ? monthProfile.map(p => p.gridPrice)
+      : Array(96).fill(params.grid.tariffType === 'flat' ? params.grid.flatPrice_perkWh : params.grid.offPeakPrice_perkWh);
+
+    return {
+      title: { text: `${MONTHS[selectedMonth - 1]} ${t('results.touPrice')}`, left: 'center' },
+      tooltip: { trigger: 'axis', valueFormatter: (v: any) => `${v} ${params.currency.symbol}/kWh` },
+      grid: { left: 60, right: 30, top: 50, bottom: 40 },
+      xAxis: { type: 'category', data: times, axisLabel: { interval: 15, rotate: 45, fontSize: 10 } },
+      yAxis: { type: 'value', name: `${params.currency.symbol}/kWh` },
+      series: [{
+        type: 'line',
+        data: prices,
+        step: 'end',
+        lineStyle: { color: '#fa541c', width: 2 },
+        itemStyle: { color: '#fa541c' },
+        areaStyle: { color: 'rgba(250,84,28,0.15)' },
+        markLine: params.grid.tariffType === 'tou' ? {
+          silent: true, symbol: 'none',
+          data: [
+            { yAxis: params.grid.peakPrice_perkWh, label: { formatter: `${t('params.peakPrice')} ${params.grid.peakPrice_perkWh}`, position: 'insideEndTop' }, lineStyle: { color: '#ff4d4f', type: 'dashed' } },
+            { yAxis: params.grid.offPeakPrice_perkWh, label: { formatter: `${t('params.offPeakPrice')} ${params.grid.offPeakPrice_perkWh}`, position: 'insideEndBottom' }, lineStyle: { color: '#52c41a', type: 'dashed' } },
+          ],
+        } : undefined,
+      }],
+    };
+  };
+
+  // ─── 月度节省费用（电费 + 柴油费，相对纯电网基准） ───
+  const getMonthlySavingOption = () => {
+    const avgPrice = params.grid.tariffType === 'flat'
+      ? params.grid.flatPrice_perkWh
+      : (params.grid.offPeakPrice_perkWh * 0.7 + params.grid.peakPrice_perkWh * 0.3);
+    const gridSaving = monthlyTotals.map(m => +((m.totals.load_kWh - m.totals.grid_kWh) * avgPrice).toFixed(0));
+    // 电网可用时基准柴油=0，方案柴油消耗记为负节省
+    const dieselSaving = monthlyTotals.map(m => +(-(m.totals.dieselFuel_L || 0) * params.diesel.fuelPrice_perL).toFixed(0));
+
+    return {
+      title: { text: t('results.monthlySaving'), left: 'center' },
+      tooltip: { trigger: 'axis', valueFormatter: (v: any) => `${v} ${params.currency.symbol}` },
+      legend: { bottom: 0, data: [t('results.saving.grid'), t('results.saving.diesel')] },
+      grid: { left: 70, right: 30, top: 50, bottom: 40 },
+      xAxis: { type: 'category', data: MONTHS },
+      yAxis: { type: 'value', name: params.currency.symbol },
+      series: [
+        { name: t('results.saving.grid'), type: 'bar', stack: 'saving', data: gridSaving, itemStyle: { color: '#52c41a' } },
+        { name: t('results.saving.diesel'), type: 'bar', stack: 'saving', data: dieselSaving, itemStyle: { color: '#fa8c16' } },
+      ],
+    };
+  };
+
   // ─── 方案对比表格 ───
   const comparisonColumns = [
     { title: t('common.metric'), dataIndex: 'label', key: 'label', width: 160, fixed: 'left' as const },
@@ -283,12 +355,22 @@ export default function ResultsPanel() {
     },
   ];
 
-  // KPI 行：基础 4 + 新增绿电消纳 + 条件展示断电时长
+  // KPI 行：基础 4 + 绿电消纳 + 绿电比例 + 储能效率 + 条件展示断电时长
+  const annualPv = scenarioResult?.annual.pv_kWh || 0;
+  const annualCurtail = scenarioResult?.annual.curtailment_kWh || 0;
+  const annualLoad = scenarioResult?.annual.load_kWh || 0;
+  const totalBessCharge = monthlyTotals.reduce((s, m) => s + (m.totals.bessCharge_kWh || 0), 0);
+  const totalBessDischarge = monthlyTotals.reduce((s, m) => s + (m.totals.bessDischarge_kWh || 0), 0);
+  // 绿电比例 = 光伏自用（发电-弃光）/ 总负荷
+  const greenRatio = annualLoad > 0 ? Math.max(annualPv - annualCurtail, 0) / annualLoad : 0;
+  // 储能综合效率 = 累计放电 / 累计充电
+  const bessEfficiency = totalBessCharge > 0 ? totalBessDischarge / totalBessCharge : 0;
+
   const kpiCols = [
     <Col span={6} key="annualPV">
       <Card size="small">
         <Statistic title={t('results.kpi.annualPV')}
-          value={(scenarioResult?.annual.pv_kWh || 0) / 1000}
+          value={annualPv / 1000}
           suffix="MWh" precision={1} />
       </Card>
     </Col>,
@@ -302,7 +384,7 @@ export default function ResultsPanel() {
     <Col span={6} key="curtailRate">
       <Card size="small">
         <Statistic title={t('results.kpi.curtailRate')}
-          value={scenarioResult ? (scenarioResult.annual.curtailment_kWh / Math.max(scenarioResult.annual.pv_kWh, 1) * 100) : 0}
+          value={annualPv > 0 ? (annualCurtail / annualPv * 100) : 0}
           suffix="%" precision={1} />
       </Card>
     </Col>,
@@ -316,8 +398,22 @@ export default function ResultsPanel() {
     <Col span={6} key="greenEnergy">
       <Card size="small">
         <Statistic title={t('results.kpi.greenEnergy')}
-          value={((scenarioResult?.annual.pv_kWh || 0) / 1000)}
+          value={Math.max(annualPv - annualCurtail, 0) / 1000}
           suffix="MWh" precision={1} />
+      </Card>
+    </Col>,
+    <Col span={6} key="greenRatio">
+      <Card size="small">
+        <Statistic title={t('results.kpi.greenRatio')}
+          value={greenRatio * 100}
+          suffix="%" precision={1} />
+      </Card>
+    </Col>,
+    <Col span={6} key="bessEfficiency">
+      <Card size="small">
+        <Statistic title={t('results.kpi.bessEfficiency')}
+          value={bessEfficiency * 100}
+          suffix="%" precision={1} />
       </Card>
     </Col>,
   ];
@@ -363,9 +459,19 @@ export default function ResultsPanel() {
         <ReactECharts option={getDispatchOption()} style={{ height: 380 }} />
       </Card>
 
+      {/* 分时电价（日尺度时跟随所选月份） */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <ReactECharts option={getTouChartOption()} style={{ height: 260 }} />
+      </Card>
+
       {/* Sankey 能量流图 */}
       <Card size="small" style={{ marginBottom: 16 }}>
         <ReactECharts option={getSankeyOption()} style={{ height: 360 }} />
+      </Card>
+
+      {/* 月度节省费用 */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <ReactECharts option={getMonthlySavingOption()} style={{ height: 300 }} />
       </Card>
 
       {/* 方案对比表 */}

@@ -29,7 +29,7 @@ export function computeFinance(
   const year1Revenue = computeAnnualSaving(simResult, baseline, params);
 
   // 3. 首年 OPEX
-  const year1Opex = computeAnnualOpex(params, scenario, totalCapex, 1);
+  const year1Opex = computeAnnualOpex(params, scenario, totalCapex, 1, simResult);
 
   // 4. N 年现金流
   const cashflow: CashflowRow[] = [];
@@ -56,7 +56,7 @@ export function computeFinance(
   for (let y = 1; y <= projectLife; y++) {
     const soh = params.sohCurve[Math.min(y - 1, params.sohCurve.length - 1)] || 1.0;
     const yearRevenue = computeAnnualSaving(simResult, baseline, params);
-    const yearOpex = computeAnnualOpex(params, scenario, totalCapex, y);
+    const yearOpex = computeAnnualOpex(params, scenario, totalCapex, y, simResult);
     const replacementCost = computeReplacementCost(params, scenario, y);
 
     // 应用年增长率
@@ -184,11 +184,23 @@ function computeAnnualOpex(
   params: InputParams,
   scenario: ScenarioConfig,
   totalCapex: number,
-  year: number
+  year: number,
+  simResult?: EngineScenarioResult
 ): number {
   // 固定 OPEX
   const pvOpex = totalCapex * params.opex.pvFixedOpexRate; // simplified
   const bessOpex = params.opex.bessFixedOpexRate * scenario.bessCapacity_kWh * params.capex.bessCost_perkWh;
+
+  // 油机维护成本 = 年油机发电量 × 单位维护成本
+  let dieselMaint = 0;
+  const rate = params.opex.dieselMaintenancePerkWh ?? 0;
+  if (rate > 0 && simResult) {
+    let annualDiesel_kWh = 0;
+    for (const mr of simResult.monthlyResults) {
+      annualDiesel_kWh += mr.totals.diesel_kWh || 0;
+    }
+    dieselMaint = annualDiesel_kWh * rate;
+  }
 
   // 人工均衡成本
   let balancingPerYear = 1; // default
@@ -204,7 +216,7 @@ function computeAnnualOpex(
   const coolantCost = (year > 1 && year % params.opex.coolantInterval === 0)
     ? params.opex.coolantCost : 0;
 
-  return pvOpex + bessOpex + balancingCost + coolantCost;
+  return pvOpex + bessOpex + dieselMaint + balancingCost + coolantCost;
 }
 
 /** 计算电池更换成本 */

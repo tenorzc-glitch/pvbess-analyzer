@@ -47,7 +47,8 @@
     "noProjects": "暂无项目，点击\"新建项目\"开始",
     "notFound": "项目未找到",
     "back": "返回",
-    "createdAt": "创建于"
+    "createdAt": "创建于",
+    "presetApplied": "已应用该国行业预设值（可直接修改）"
   },
   "country": {
     "brazil": "巴西 Brazil",
@@ -101,6 +102,17 @@
     "opexGrowth": "OPEX 年增长",
     "workDays": "有效工作日",
     "rainySchedule": "雨季排程",
+    "currency": "货币",
+    "dieselMaintenance": "油机维护成本",
+    "workDaysPanel": {
+      "title": "有效工作日与雨季",
+      "effectiveDays": "年有效工作天数",
+      "maintenance": "月检修天数",
+      "rainyMonths": "雨季月份",
+      "rainyOutage": "雨季停运天数",
+      "computed": "实际生效天数",
+      "tip": "光储系统停运日（雨季+检修）内负荷由电网/油机承担；各月检修与雨季停运天数合计决定实际生效天数"
+    },
     "outageLoss": {
       "title": "断电损失",
       "enabled": "启用断电损失估算",
@@ -153,7 +165,9 @@
       "curtailRate": "弃光率",
       "annualDiesel": "年柴油消耗",
       "greenEnergy": "年绿电消纳",
-      "outageHours": "年断电时长"
+      "outageHours": "年断电时长",
+      "greenRatio": "绿电比例",
+      "bessEfficiency": "储能综合效率"
     },
     "compare": {
       "title": "方案对比",
@@ -171,6 +185,14 @@
       "week": "周",
       "month": "月",
       "year": "年"
+    },
+    "load": "负荷",
+    "demandLine": "合同需量",
+    "touPrice": "分时电价",
+    "monthlySaving": "月度节省费用",
+    "saving": {
+      "grid": "电费节省",
+      "diesel": "柴油费节省"
     },
     "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
     "sankey": {
@@ -240,6 +262,7 @@
     "compareReport": "双品牌对比报告",
     "includeGreen": "包含绿电溢价",
     "includeOutage": "包含断电损失",
+    "compareWithHW": "包含 HW 对比",
     "cover": "光储投资分析报告",
     "date": "报告日期"
   },
@@ -267,7 +290,19 @@
     "roleUser": "用户",
     "registerTime": "注册时间",
     "deleteUser": "删除用户",
-    "deleteUserConfirm": "确定删除该用户及其所有项目？"
+    "deleteUserConfirm": "确定删除该用户及其所有项目？",
+    "activate": "管理员激活",
+    "activateCode": "激活码",
+    "activateBtn": "激活",
+    "activateSuccess": "已激活管理员权限",
+    "activateFailed": "激活失败，请检查激活码",
+    "activateTip": "如有管理员激活码，可在此激活",
+    "projectName": "项目名称",
+    "owner": "所有者",
+    "updatedAt": "更新时间",
+    "actions": "操作",
+    "deleteProjectConfirm": "确定删除该项目？",
+    "noProjects": "暂无项目"
   },
   "common": {
     "save": "保存",

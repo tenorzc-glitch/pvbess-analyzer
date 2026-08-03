@@ -2,6 +2,21 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import ExcelJS from 'exceljs';
 import { FinanceResult, InputParams } from '../types';
+import { BrandMap, HWEstimate } from './brand';
+
+/** 报告导出选项 */
+export interface ReportOptions {
+  /** 包含绿电溢价明细 */
+  includeGreen: boolean;
+  /** 包含断电损失明细 */
+  includeOutage: boolean;
+  /** 附加 HW 品牌对比 Sheet */
+  compareHW: boolean;
+  /** compareHW 为 true 时必填 */
+  hwEstimate?: HWEstimate | null;
+  /** 品牌参数（对比 Sheet 展示用） */
+  brands?: BrandMap;
+}
 
 /**
  * 用 html2canvas 截取指定 DOM 元素，生成 A4 纵向 PDF 并保存。
@@ -58,8 +73,16 @@ export async function exportPDF(elementId: string, fileName: string): Promise<vo
 export async function exportExcelReport(
   financeResult: FinanceResult,
   scenarioName: string,
-  params: InputParams
+  params: InputParams,
+  options?: ReportOptions
 ): Promise<void> {
+  const opts: ReportOptions = {
+    includeGreen: options?.includeGreen ?? true,
+    includeOutage: options?.includeOutage ?? true,
+    compareHW: options?.compareHW ?? false,
+    hwEstimate: options?.hwEstimate,
+    brands: options?.brands,
+  };
   const wb = new ExcelJS.Workbook();
   wb.creator = 'PV·BESS Analyzer';
   wb.created = new Date();
@@ -83,6 +106,21 @@ export async function exportExcelReport(
     ['LCOE', financeResult.lcoe.toFixed(4)],
     ['B/C Ratio', financeResult.benefitCostRatio.toFixed(3)],
   ];
+  // 绿电溢价明细（可选）
+  if (opts.includeGreen && financeResult.greenPremium) {
+    metricRows.push(
+      ['年绿电消纳量 (kWh)', financeResult.greenPremium.annualGreenEnergy_kWh.toFixed(0)],
+      ['年绿电溢价收益', financeResult.greenPremium.annualPremium.toFixed(2)],
+      ['全生命周期溢价', financeResult.greenPremium.totalPremium.toFixed(2)],
+    );
+  }
+  // 断电损失明细（可选）
+  if (opts.includeOutage && financeResult.outageLoss) {
+    metricRows.push(
+      ['年未供电量 (kWh)', financeResult.outageLoss.totalUnserved_kWh.toFixed(0)],
+      ['年断电损失', financeResult.outageLoss.annualLoss.toFixed(2)],
+    );
+  }
   for (const [m, v] of metricRows) {
     sheet1.addRow({ metric: m, value: v });
   }
@@ -153,6 +191,38 @@ export async function exportExcelReport(
   ];
   for (const [p, v] of paramRows) {
     sheet3.addRow({ param: p, value: v });
+  }
+
+  // ─── Sheet 4: HW 品牌对比（可选） ───
+  if (opts.compareHW && opts.hwEstimate && opts.brands) {
+    const hw = opts.hwEstimate;
+    const brands = opts.brands;
+    const sheet4 = wb.addWorksheet('HW 对比');
+    sheet4.columns = [
+      { header: '指标', key: 'metric', width: 30 },
+      { header: '行业平均', key: 'industry', width: 18 },
+      { header: 'HW', key: 'hw', width: 18 },
+      { header: 'Δ (HW − 行业)', key: 'delta', width: 18 },
+    ];
+    sheet4.getRow(1).font = { bold: true };
+
+    const cmpRows: Array<[string, string | number, string | number, string | number]> = [
+      ['充电效率', brands.industry_avg.efficiencyCharge, brands.HW.efficiencyCharge, brands.HW.efficiencyCharge - brands.industry_avg.efficiencyCharge],
+      ['放电效率', brands.industry_avg.efficiencyDischarge, brands.HW.efficiencyDischarge, brands.HW.efficiencyDischarge - brands.industry_avg.efficiencyDischarge],
+      ['电池单价 (货币/kWh)', brands.industry_avg.costPerKWh, brands.HW.costPerKWh, brands.HW.costPerKWh - brands.industry_avg.costPerKWh],
+      ['PCS 单价 (货币/kW)', brands.industry_avg.pcsCostPerKW, brands.HW.pcsCostPerKW, brands.HW.pcsCostPerKW - brands.industry_avg.pcsCostPerKW],
+      ['OPEX 比率', brands.industry_avg.opexRate, brands.HW.opexRate, brands.HW.opexRate - brands.industry_avg.opexRate],
+      ['CAPEX', financeResult.capex.toFixed(2), hw.capex.toFixed(2), (hw.capex - financeResult.capex).toFixed(2)],
+      ['首年收益', financeResult.annualRevenue.toFixed(2), hw.annualRevenue.toFixed(2), (hw.annualRevenue - financeResult.annualRevenue).toFixed(2)],
+      ['NPV', financeResult.npv.toFixed(2), hw.npv.toFixed(2), (hw.npv - financeResult.npv).toFixed(2)],
+      ['IRR', `${(financeResult.irr * 100).toFixed(2)}%`, `${(hw.irr * 100).toFixed(2)}%`, `${((hw.irr - financeResult.irr) * 100).toFixed(2)}pp`],
+      ['静态回收期 (年)', financeResult.paybackStatic.toFixed(2), hw.paybackStatic.toFixed(2), (hw.paybackStatic - financeResult.paybackStatic).toFixed(2)],
+    ];
+    for (const [m, i, h, d] of cmpRows) {
+      sheet4.addRow({ metric: m, industry: i, hw: h, delta: d });
+    }
+    sheet4.addRow({});
+    sheet4.addRow({ metric: '注：HW 列为同容量下的简化估算（效率/OPEX 差异调整），非重新仿真。' });
   }
 
   const buf = await wb.xlsx.writeBuffer();

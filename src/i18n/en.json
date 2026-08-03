@@ -47,7 +47,8 @@
     "noProjects": "No projects yet. Click \"New Project\" to start.",
     "notFound": "Project not found",
     "back": "Back",
-    "createdAt": "Created on"
+    "createdAt": "Created on",
+    "presetApplied": "Country industry presets applied (editable)"
   },
   "country": {
     "brazil": "Brazil",
@@ -101,6 +102,17 @@
     "opexGrowth": "OPEX Growth",
     "workDays": "Effective Days",
     "rainySchedule": "Rainy Schedule",
+    "currency": "Currency",
+    "dieselMaintenance": "Diesel Maintenance",
+    "workDaysPanel": {
+      "title": "Effective Days & Rainy Season",
+      "effectiveDays": "Effective Days / Year",
+      "maintenance": "Maintenance Days / Month",
+      "rainyMonths": "Rainy Months",
+      "rainyOutage": "Rainy Outage Days",
+      "computed": "Actual Effective Days",
+      "tip": "On PV+BESS outage days (rainy + maintenance), load is served by grid/diesel. Monthly maintenance and rainy outage days determine the actual effective days."
+    },
     "outageLoss": {
       "title": "Outage Loss",
       "enabled": "Enable Outage Loss Estimation",
@@ -153,7 +165,9 @@
       "curtailRate": "Curtailment Rate",
       "annualDiesel": "Annual Diesel",
       "greenEnergy": "Annual Green Energy",
-      "outageHours": "Annual Outage Hours"
+      "outageHours": "Annual Outage Hours",
+      "greenRatio": "Green Energy Ratio",
+      "bessEfficiency": "BESS Round-trip Eff."
     },
     "compare": {
       "title": "Scenario Comparison",
@@ -171,6 +185,14 @@
       "week": "Weekly",
       "month": "Monthly",
       "year": "Yearly"
+    },
+    "load": "Load",
+    "demandLine": "Contract Demand",
+    "touPrice": "TOU Price",
+    "monthlySaving": "Monthly Savings",
+    "saving": {
+      "grid": "Grid Cost Saving",
+      "diesel": "Diesel Cost Saving"
     },
     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
     "sankey": {
@@ -240,6 +262,7 @@
     "compareReport": "Brand Comparison Report",
     "includeGreen": "Include Green Premium",
     "includeOutage": "Include Outage Loss",
+    "compareWithHW": "Include HW Comparison",
     "cover": "PV+BESS Investment Analysis Report",
     "date": "Report Date"
   },
@@ -267,7 +290,19 @@
     "roleUser": "User",
     "registerTime": "Registered",
     "deleteUser": "Delete User",
-    "deleteUserConfirm": "Delete this user and all their projects?"
+    "deleteUserConfirm": "Delete this user and all their projects?",
+    "activate": "Admin Activation",
+    "activateCode": "Activation Code",
+    "activateBtn": "Activate",
+    "activateSuccess": "Admin privileges activated",
+    "activateFailed": "Activation failed. Check the code.",
+    "activateTip": "Have an admin activation code? Activate here.",
+    "projectName": "Project Name",
+    "owner": "Owner",
+    "updatedAt": "Updated",
+    "actions": "Actions",
+    "deleteProjectConfirm": "Delete this project?",
+    "noProjects": "No projects"
   },
   "common": {
     "save": "Save",

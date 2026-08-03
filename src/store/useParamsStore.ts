@@ -57,6 +57,7 @@ export const DEFAULT_PARAMS: InputParams = {
   opex: {
     pvFixedOpexRate: 0.01,
     bessFixedOpexRate: 0.015,
+    dieselMaintenancePerkWh: 0.05,
     balancingSchedule: [0, 1, 2, 3],
     balancingCrew: 2,
     balancingHours: 16,
@@ -81,9 +82,10 @@ export const DEFAULT_PARAMS: InputParams = {
   },
 
   workDays: {
+    // 默认：365 - 24(检修) - 41(雨季停运) = 300 天
     effectiveDaysPerYear: 300,
     rainyMonths: [12, 1, 2, 3],
-    rainyOutageDays: [5, 8, 6, 4],
+    rainyOutageDays: [11, 12, 11, 7],
     maintenanceDaysPerMonth: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   },
 

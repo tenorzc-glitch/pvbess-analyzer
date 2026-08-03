@@ -1,4 +1,5 @@
-import { Card, Row, Col, Table, Statistic, Spin, Empty, Typography, Button, Space, message } from 'antd';
+import { useEffect, useState } from 'react';
+import { Card, Row, Col, Table, Statistic, Spin, Empty, Typography, Button, Space, message, Checkbox } from 'antd';
 import { DownloadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useTranslation } from 'react-i18next';
@@ -7,14 +8,27 @@ import { useFinanceStore } from '../../store/useFinanceStore';
 import { useParamsStore } from '../../store/useParamsStore';
 import { FinanceResult } from '../../types/finance';
 import { exportPDF, exportExcelReport } from '../../utils/export';
+import { BrandMap, FALLBACK_BRANDS, loadBrandParams, estimateHWFinance } from '../../utils/brand';
 
 const { Title, Text } = Typography;
 
 export default function FinancePanel() {
   const { t } = useTranslation();
-  const { results, isRunning: simRunning } = useSimulationStore();
+  const { results, scenarios, isRunning: simRunning } = useSimulationStore();
   const { results: financeResults, isRunning: finRunning } = useFinanceStore();
   const { params } = useParamsStore();
+
+  // 报告导出选项
+  const [reportIncludeGreen, setReportIncludeGreen] = useState(true);
+  const [reportIncludeOutage, setReportIncludeOutage] = useState(true);
+  const [reportCompareHW, setReportCompareHW] = useState(false);
+  const [brands, setBrands] = useState<BrandMap>(FALLBACK_BRANDS);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadBrandParams().then(({ brands: b }) => { if (!cancelled) setBrands(b); });
+    return () => { cancelled = true; };
+  }, []);
 
   const isRunning = simRunning || finRunning;
 
@@ -36,6 +50,11 @@ export default function FinancePanel() {
 
   // 最优方案对应的仿真结果（用于断电损失/绿电溢价展示）
   const bestSimResult = results?.find(r => r.scenarioId === bestResult.scenarioId) ?? null;
+  // 最优方案对应的容量配置（用于 HW 对比估算）
+  const bestScenario = scenarios?.find(s => s.id === bestResult.scenarioId) ?? null;
+  const hwEstimate = reportCompareHW && bestScenario
+    ? estimateHWFinance(params, bestScenario, bestResult, brands)
+    : null;
 
   // ─── NPV 对比柱状图 ───
   const npvChartOption = {
@@ -183,7 +202,14 @@ export default function FinancePanel() {
       await exportExcelReport(
         bestResult,
         `${t('params.scheme')} ${bestResult.scenarioId}`,
-        params
+        params,
+        {
+          includeGreen: reportIncludeGreen && params.greenPremium.enabled,
+          includeOutage: reportIncludeOutage && params.outageLoss.enabled,
+          compareHW: reportCompareHW,
+          hwEstimate,
+          brands,
+        }
       );
       message.success({ content: 'Excel OK', key: 'excel' });
     } catch (e: any) {
@@ -191,7 +217,36 @@ export default function FinancePanel() {
     }
   };
 
+  // 报告导出控制条（不进 PDF 截图）
+  const reportControls = (
+    <Row justify="end" style={{ marginBottom: 8 }}>
+      <Space wrap>
+        {params.greenPremium.enabled && (
+          <Checkbox checked={reportIncludeGreen} onChange={(e) => setReportIncludeGreen(e.target.checked)}>
+            {t('report.includeGreen')}
+          </Checkbox>
+        )}
+        {params.outageLoss.enabled && (
+          <Checkbox checked={reportIncludeOutage} onChange={(e) => setReportIncludeOutage(e.target.checked)}>
+            {t('report.includeOutage')}
+          </Checkbox>
+        )}
+        <Checkbox checked={reportCompareHW} onChange={(e) => setReportCompareHW(e.target.checked)}>
+          {t('report.compareWithHW')}
+        </Checkbox>
+        <Button size="small" icon={<DownloadOutlined />} onClick={handleDownloadPDF}>
+          {t('report.downloadPDF')}
+        </Button>
+        <Button size="small" icon={<FileExcelOutlined />} onClick={handleDownloadExcel}>
+          {t('report.downloadExcel')}
+        </Button>
+      </Space>
+    </Row>
+  );
+
   return (
+    <>
+    {reportControls}
     <div id="finance-report-content">
       {/* 最优方案 KPI */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
@@ -234,7 +289,7 @@ export default function FinancePanel() {
       </Card>
 
       {/* 断电损失 */}
-      {params.outageLoss.enabled && bestSimResult && (
+      {params.outageLoss.enabled && reportIncludeOutage && bestSimResult && (
         <Card size="small" title={t('finance.outage.title')} style={{ marginBottom: 16 }}>
           <Row gutter={16}>
             <Col span={6}>
@@ -260,7 +315,7 @@ export default function FinancePanel() {
       )}
 
       {/* 绿电溢价 */}
-      {params.greenPremium.enabled && bestSimResult && (
+      {params.greenPremium.enabled && reportIncludeGreen && bestSimResult && (
         <Card size="small" title={t('finance.green.title')} style={{ marginBottom: 16 }}>
           <Row gutter={16}>
             <Col span={8}>
@@ -291,28 +346,39 @@ export default function FinancePanel() {
         </Card>
       )}
 
+      {/* HW 品牌对比（报告开关打开且有估算结果时展示，计入 PDF/Excel 报告） */}
+      {hwEstimate && (
+        <Card size="small" title={`${t('compare.title')} — ${t('compare.industry')} vs ${t('compare.hw')}`} style={{ marginBottom: 16 }}>
+          <Table
+            dataSource={[
+              { key: 'capex', metric: t('finance.table.capex'), industry: bestResult.capex, hw: hwEstimate.capex },
+              { key: 'revenue', metric: t('finance.table.revenue'), industry: bestResult.annualRevenue, hw: hwEstimate.annualRevenue },
+              { key: 'npv', metric: t('finance.table.npv'), industry: bestResult.npv, hw: hwEstimate.npv },
+              { key: 'irr', metric: t('finance.table.irr'), industry: bestResult.irr, hw: hwEstimate.irr, pct: true },
+              { key: 'payback', metric: t('finance.table.paybackStatic'), industry: bestResult.paybackStatic, hw: hwEstimate.paybackStatic },
+            ]}
+            columns={[
+              { title: t('common.metric'), dataIndex: 'metric', key: 'metric', width: 160 },
+              { title: t('compare.industry'), dataIndex: 'industry', key: 'industry', align: 'right' as const,
+                render: (v: number, r: any) => r.pct ? `${(v * 100).toFixed(1)}%` : formatMoney(v) },
+              { title: t('compare.hw'), dataIndex: 'hw', key: 'hw', align: 'right' as const,
+                render: (v: number, r: any) => r.pct ? `${(v * 100).toFixed(1)}%` : formatMoney(v) },
+              { title: 'Δ', key: 'delta', align: 'right' as const,
+                render: (_: any, r: any) => {
+                  const d = r.hw - r.industry;
+                  return r.pct ? `${(d * 100).toFixed(2)}pp` : `${d >= 0 ? '+' : ''}${formatMoney(d)}`;
+                } },
+            ]}
+            pagination={false}
+            size="small"
+          />
+        </Card>
+      )}
+
       {/* 财务指标汇总表 */}
       <Card
         size="small"
         title={t('finance.title')}
-        extra={
-          <Space>
-            <Button
-              size="small"
-              icon={<DownloadOutlined />}
-              onClick={handleDownloadPDF}
-            >
-              {t('report.downloadPDF')}
-            </Button>
-            <Button
-              size="small"
-              icon={<FileExcelOutlined />}
-              onClick={handleDownloadExcel}
-            >
-              {t('report.downloadExcel')}
-            </Button>
-          </Space>
-        }
       >
         <Table
           dataSource={financeData.map((d, i) => ({ ...d, key: i }))}
@@ -323,5 +389,6 @@ export default function FinancePanel() {
         />
       </Card>
     </div>
+    </>
   );
 }

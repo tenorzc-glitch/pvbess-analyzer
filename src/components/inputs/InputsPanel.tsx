@@ -13,12 +13,28 @@ import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 
+/** 支持的货币选项 */
+const CURRENCY_OPTIONS = [
+  { value: 'BRL', label: 'BRL R$ — 巴西雷亚尔', symbol: 'R$', locale: 'pt-BR' },
+  { value: 'USD', label: 'USD $ — 美元', symbol: '$', locale: 'en-US' },
+  { value: 'EUR', label: 'EUR € — 欧元', symbol: '€', locale: 'de-DE' },
+  { value: 'CNY', label: 'CNY ¥ — 人民币', symbol: '¥', locale: 'zh-CN' },
+  { value: 'MXN', label: 'MXN MX$ — 墨西哥比索', symbol: 'MX$', locale: 'es-MX' },
+  { value: 'COP', label: 'COP $ — 哥伦比亚比索', symbol: 'COP$', locale: 'es-CO' },
+  { value: 'CLP', label: 'CLP $ — 智利比索', symbol: 'CLP$', locale: 'es-CL' },
+  { value: 'PEN', label: 'PEN S/ — 秘鲁索尔', symbol: 'S/', locale: 'es-PE' },
+];
+
+const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const MONTH_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
 export default function InputsPanel() {
   const { t } = useTranslation();
   const { params, updateParams } = useParamsStore();
   const { scenarios, setScenarios } = useSimulationStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const MONTHS = (t('results.months', { returnObjects: true }) as string[]) || MONTH_KEYS;
 
   const handleDownloadTemplate = () => {
     downloadExcelTemplate(params).catch((err) => {
@@ -60,6 +76,14 @@ export default function InputsPanel() {
     );
     setScenarios(updated);
   };
+
+  // 实际生效工作天数 = 365 - Σ月检修 - Σ雨季停运
+  const computedWorkDays = (() => {
+    const wd = params.workDays;
+    const maintenance = (wd.maintenanceDaysPerMonth || []).reduce((s, v) => s + (v || 0), 0);
+    const rainy = (wd.rainyOutageDays || []).reduce((s, v) => s + (v || 0), 0);
+    return 365 - maintenance - rainy;
+  })();
 
   const scenarioColumns = [
     { title: t('params.scheme'), dataIndex: 'id', key: 'id', render: (v: number) => `${t('params.scheme')} ${v}` },
@@ -166,14 +190,14 @@ export default function InputsPanel() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label={t('params.demandCharge')} help="货币/kW·月">
+              <Form.Item label={t('params.demandCharge')} help={`${params.currency.symbol}/kW·月`}>
                 <InputNumber value={params.grid.demandCharge_perKW}
                   onChange={(v) => handleParamChange(['grid', 'demandCharge_perKW'], v)}
                   min={0} step={5} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label={t('params.excessRate')} help="货币/kW·月">
+              <Form.Item label={t('params.excessRate')} help={`${params.currency.symbol}/kW·月`}>
                 <InputNumber value={params.grid.excessDemandRate}
                   onChange={(v) => handleParamChange(['grid', 'excessDemandRate'], v)}
                   min={0} step={5} style={{ width: '100%' }} />
@@ -194,14 +218,14 @@ export default function InputsPanel() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label={t('params.offPeakPrice')} help="货币/kWh">
+              <Form.Item label={t('params.offPeakPrice')} help={`${params.currency.symbol}/kWh`}>
                 <InputNumber value={params.grid.offPeakPrice_perkWh}
                   onChange={(v) => handleParamChange(['grid', 'offPeakPrice_perkWh'], v)}
                   min={0} step={0.05} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label={t('params.peakPrice')} help="货币/kWh">
+              <Form.Item label={t('params.peakPrice')} help={`${params.currency.symbol}/kWh`}>
                 <InputNumber value={params.grid.peakPrice_perkWh}
                   onChange={(v) => handleParamChange(['grid', 'peakPrice_perkWh'], v)}
                   min={0} step={0.05} style={{ width: '100%' }} />
@@ -287,7 +311,17 @@ export default function InputsPanel() {
                 <InputNumber value={params.diesel.fuelPrice_perL}
                   onChange={(v) => handleParamChange(['diesel', 'fuelPrice_perL'], v)}
                   min={0} step={0.5} style={{ width: '100%' }}
-                  addonAfter="货币/L" />
+                  addonAfter={`${params.currency.symbol}/L`} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.dieselMaintenance')}>
+                <InputNumber value={params.opex.dieselMaintenancePerkWh ?? 0}
+                  onChange={(v) => handleParamChange(['opex', 'dieselMaintenancePerkWh'], v)}
+                  min={0} step={0.01} style={{ width: '100%' }}
+                  addonAfter={`${params.currency.symbol}/kWh`} />
               </Form.Item>
             </Col>
           </Row>
@@ -300,21 +334,21 @@ export default function InputsPanel() {
               <Form.Item label={t('params.pvUnitCost')}>
                 <InputNumber value={params.capex.pvCost_perkW}
                   onChange={(v) => handleParamChange(['capex', 'pvCost_perkW'], v)}
-                  min={0} step={100} style={{ width: '100%' }} addonAfter="货币/kWp" />
+                  min={0} step={100} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/kWp`} />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item label={t('params.bessUnitCost')}>
                 <InputNumber value={params.capex.bessCost_perkWh}
                   onChange={(v) => handleParamChange(['capex', 'bessCost_perkWh'], v)}
-                  min={0} step={50} style={{ width: '100%' }} addonAfter="货币/kWh" />
+                  min={0} step={50} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/kWh`} />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item label={t('params.pcsUnitCost')}>
                 <InputNumber value={params.capex.pcsCost_perkW}
                   onChange={(v) => handleParamChange(['capex', 'pcsCost_perkW'], v)}
-                  min={0} step={50} style={{ width: '100%' }} addonAfter="货币/kW" />
+                  min={0} step={50} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/kW`} />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -382,6 +416,107 @@ export default function InputsPanel() {
               </Form.Item>
             </Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.currency')}>
+                <Select
+                  value={params.currency.code}
+                  onChange={(code) => {
+                    const opt = CURRENCY_OPTIONS.find(o => o.value === code);
+                    if (opt) handleParamChange(['currency'], { code: opt.value, symbol: opt.symbol, locale: opt.locale });
+                  }}
+                  options={CURRENCY_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Panel>
+
+        {/* 有效工作日与雨季 */}
+        <Panel header={t('params.workDaysPanel.title')} key="workdays">
+          <Row gutter={16} style={{ marginBottom: 8 }}>
+            <Col span={8}>
+              <Form.Item label={t('params.workDaysPanel.effectiveDays')}>
+                <InputNumber value={params.workDays.effectiveDaysPerYear}
+                  onChange={(v) => handleParamChange(['workDays', 'effectiveDaysPerYear'], v)}
+                  min={0} max={365} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label={t('params.workDaysPanel.computed')}>
+                <Tag color={computedWorkDays === params.workDays.effectiveDaysPerYear ? 'green' : 'orange'} style={{ fontSize: 14, padding: '2px 12px' }}>
+                  {computedWorkDays} / 365
+                </Tag>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label={t('params.workDaysPanel.rainyMonths')}>
+                <Select
+                  mode="multiple"
+                  value={params.workDays.rainyMonths}
+                  onChange={(months: number[]) => {
+                    const sorted = [...months].sort((a, b) => a - b);
+                    const newParams = JSON.parse(JSON.stringify(params));
+                    // 保留已有月份的停运天数，新月份默认 5 天
+                    newParams.workDays.rainyOutageDays = sorted.map(m => {
+                      const oldIdx = params.workDays.rainyMonths.indexOf(m);
+                      return oldIdx >= 0 ? params.workDays.rainyOutageDays[oldIdx] : 5;
+                    });
+                    newParams.workDays.rainyMonths = sorted;
+                    updateParams(newParams);
+                  }}
+                  options={MONTH_KEYS.map((_, i) => ({ value: i + 1, label: MONTHS[i] }))}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label={t('params.workDaysPanel.rainyOutage')}>
+                <Space wrap>
+                  {params.workDays.rainyMonths.map((m, idx) => (
+                    <InputNumber
+                      key={m}
+                      size="small"
+                      addonBefore={MONTHS[m - 1]}
+                      value={params.workDays.rainyOutageDays[idx]}
+                      onChange={(v) => {
+                        const arr = [...params.workDays.rainyOutageDays];
+                        arr[idx] = v || 0;
+                        handleParamChange(['workDays', 'rainyOutageDays'], arr);
+                      }}
+                      min={0} max={DAYS_PER_MONTH[m - 1]} style={{ width: 110 }}
+                    />
+                  ))}
+                </Space>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row>
+            <Col span={24}>
+              <Form.Item label={t('params.workDaysPanel.maintenance')}>
+                <Space wrap>
+                  {MONTH_KEYS.map((k, i) => (
+                    <InputNumber
+                      key={k}
+                      size="small"
+                      addonBefore={MONTHS[i]}
+                      value={params.workDays.maintenanceDaysPerMonth[i]}
+                      onChange={(v) => {
+                        const arr = [...params.workDays.maintenanceDaysPerMonth];
+                        arr[i] = v || 0;
+                        handleParamChange(['workDays', 'maintenanceDaysPerMonth'], arr);
+                      }}
+                      min={0} max={DAYS_PER_MONTH[i]} style={{ width: 100 }}
+                    />
+                  ))}
+                </Space>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('params.workDaysPanel.tip')}</Text>
         </Panel>
 
         {/* 断电损失 */}

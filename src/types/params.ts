@@ -54,6 +54,7 @@ export interface InputParams {
   opex: {
     pvFixedOpexRate: number;      // %CAPEX/年
     bessFixedOpexRate: number;
+    dieselMaintenancePerkWh: number; // 油机维护成本（货币/kWh 发电量）
     balancingSchedule: number[];  // 各阶段均衡次数/年 [Y1-2, Y3-5, Y6-10, Y11+]
     balancingCrew: number;        // 上站人数
     balancingHours: number;       // 每人单次工时

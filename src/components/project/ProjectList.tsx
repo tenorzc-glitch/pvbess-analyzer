@@ -3,16 +3,17 @@ import { Card, Button, Space, Modal, Input, Select, Typography, Empty, Alert } f
 import { PlusOutlined, ProjectOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../../store/useProjectStore';
-import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useTranslation } from 'react-i18next';
 import { Project, CountryCode } from '../../types';
+import { applyCountryPreset, COUNTRY_PRESETS } from '../../data/countries';
 
 const { Title, Text } = Typography;
 
 export default function ProjectList() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language?.startsWith('en') ? 'en' : 'zh';
 
   const COUNTRY_OPTIONS: { value: CountryCode; label: string }[] = [
     { value: 'brazil', label: t('country.brazil') },
@@ -45,7 +46,8 @@ export default function ProjectList() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'draft',
-      params: useParamsStore.getState().params,
+      // 按国家+行业应用预设参数（用户仍可修改）
+      params: applyCountryPreset(newCountry),
       scenarios: useSimulationStore.getState().scenarios,
     };
     const saved = await addProject(project);
@@ -150,6 +152,11 @@ export default function ProjectList() {
               options={COUNTRY_OPTIONS}
               style={{ width: '100%', marginTop: 4 }}
             />
+            {COUNTRY_PRESETS[newCountry] && (
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                {t('project.presetApplied')} — {COUNTRY_PRESETS[newCountry]!.note[lang]}
+              </Text>
+            )}
           </div>
         </Space>
       </Modal>
