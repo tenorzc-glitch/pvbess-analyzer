@@ -10,18 +10,19 @@ import { Project, CountryCode } from '../../types';
 
 const { Title, Text } = Typography;
 
-const COUNTRY_OPTIONS: { value: CountryCode; label: string }[] = [
-  { value: 'brazil', label: '巴西 Brazil' },
-  { value: 'mexico', label: '墨西哥 Mexico' },
-  { value: 'colombia', label: '哥伦比亚 Colombia' },
-  { value: 'chile', label: '智利 Chile' },
-  { value: 'peru', label: '秘鲁 Peru' },
-  { value: 'custom', label: '自定义 Custom' },
-];
-
 export default function ProjectList() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  const COUNTRY_OPTIONS: { value: CountryCode; label: string }[] = [
+    { value: 'brazil', label: t('country.brazil') },
+    { value: 'mexico', label: t('country.mexico') },
+    { value: 'colombia', label: t('country.colombia') },
+    { value: 'chile', label: t('country.chile') },
+    { value: 'peru', label: t('country.peru') },
+    { value: 'custom', label: t('country.custom') },
+  ];
+
   const { projects, syncState, cloudMode, loadProjects, addProject, deleteProject } = useProjectStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState('');

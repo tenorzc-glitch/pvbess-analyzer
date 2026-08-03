@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppLayout from './components/layout/AppLayout';
 import ProjectList from './components/project/ProjectList';
 import ProjectDetail from './components/project/ProjectDetail';
@@ -18,9 +19,10 @@ function AppRoutes() {
 }
 
 function NotFound() {
+  const { t } = useTranslation();
   return (
     <div style={{ textAlign: 'center', padding: 100 }}>
-      <h2>404 - 页面未找到</h2>
+      <h2>{t('common.notFound')}</h2>
     </div>
   );
 }

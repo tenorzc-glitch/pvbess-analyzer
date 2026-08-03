@@ -1,14 +1,20 @@
-import { Card, Row, Col, Table, Statistic, Spin, Empty, Typography } from 'antd';
+import { Card, Row, Col, Table, Statistic, Spin, Empty, Typography, Button, Space, message } from 'antd';
+import { DownloadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
+import { useTranslation } from 'react-i18next';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useFinanceStore } from '../../store/useFinanceStore';
+import { useParamsStore } from '../../store/useParamsStore';
 import { FinanceResult } from '../../types/finance';
+import { exportPDF, exportExcelReport } from '../../utils/export';
 
 const { Title, Text } = Typography;
 
 export default function FinancePanel() {
+  const { t } = useTranslation();
   const { results, isRunning: simRunning } = useSimulationStore();
   const { results: financeResults, isRunning: finRunning } = useFinanceStore();
+  const { params } = useParamsStore();
 
   const isRunning = simRunning || finRunning;
 
@@ -16,25 +22,28 @@ export default function FinancePanel() {
     return (
       <div style={{ textAlign: 'center', padding: 60 }}>
         <Spin size="large" />
-        <Text style={{ display: 'block', marginTop: 16 }}>正在计算财务指标...</Text>
+        <Text style={{ display: 'block', marginTop: 16 }}>{t('finance.running')}</Text>
       </div>
     );
   }
 
   if (!financeResults || financeResults.length === 0) {
-    return <Empty description="暂无财务数据，请先运行仿真" />;
+    return <Empty description={t('finance.noData')} />;
   }
 
   // 找到最优方案（NPV 最大）
   const bestResult = financeResults.reduce((a, b) => a.npv > b.npv ? a : b);
 
+  // 最优方案对应的仿真结果（用于断电损失/绿电溢价展示）
+  const bestSimResult = results?.find(r => r.scenarioId === bestResult.scenarioId) ?? null;
+
   // ─── NPV 对比柱状图 ───
   const npvChartOption = {
-    title: { text: 'NPV 对比（5 方案）', left: 'center' },
+    title: { text: t('finance.npvChart'), left: 'center' },
     tooltip: { trigger: 'axis' },
     xAxis: {
       type: 'category',
-      data: financeResults.map(r => `方案${r.scenarioId}`),
+      data: financeResults.map(r => `${t('params.scheme')} ${r.scenarioId}`),
     },
     yAxis: { type: 'value', name: '净现值' },
     series: [{
@@ -56,7 +65,7 @@ export default function FinancePanel() {
 
   // ─── 累计现金流图 ───
   const cashflowChartOption = {
-    title: { text: `方案${bestResult.scenarioId} 累计折现现金流`, left: 'center' },
+    title: { text: `${t('params.scheme')} ${bestResult.scenarioId} ${t('finance.cashflowChart')}`, left: 'center' },
     tooltip: { trigger: 'axis' },
     xAxis: {
       type: 'category',
@@ -65,11 +74,11 @@ export default function FinancePanel() {
     yAxis: { type: 'value', name: '累计现金流' },
     series: [
       {
-        name: '累计折现现金流',
+        name: t('finance.cashflowChart'),
         type: 'line',
         data: bestResult.cashflow.map(r => r.cumulativeDiscountedCF),
         markLine: {
-          data: [{ yAxis: 0, label: { formatter: '回收点' } }],
+          data: [{ yAxis: 0, label: { formatter: t('finance.paybackPoint') } }],
           lineStyle: { color: '#ff4d4f', type: 'dashed' },
         },
         areaStyle: { color: 'rgba(22,119,255,0.1)' },
@@ -80,9 +89,9 @@ export default function FinancePanel() {
 
   // ─── 财务对比表 ───
   const financeColumns = [
-    { title: '指标', dataIndex: 'label', key: 'label', width: 160, fixed: 'left' as const },
+    { title: t('common.metric'), dataIndex: 'label', key: 'label', width: 160, fixed: 'left' as const },
     ...financeResults.map(r => ({
-      title: `方案${r.scenarioId}`,
+      title: `${t('params.scheme')} ${r.scenarioId}`,
       dataIndex: `s${r.scenarioId}`,
       key: `s${r.scenarioId}`,
       align: 'right' as const,
@@ -98,67 +107,118 @@ export default function FinancePanel() {
 
   const financeData = [
     {
-      label: 'CAPEX',
+      label: t('finance.table.capex'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, formatMoney(r.capex)])),
     },
     {
-      label: '首年收益',
+      label: t('finance.table.revenue'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, formatMoney(r.annualRevenue)])),
     },
     {
-      label: 'NPV',
+      label: t('finance.table.npv'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, formatMoney(r.npv)])),
     },
     {
-      label: 'IRR',
+      label: t('finance.table.irr'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, `${(r.irr * 100).toFixed(1)}%`])),
     },
     {
-      label: '静态回收期 (年)',
+      label: t('finance.table.paybackStatic'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, r.paybackStatic.toFixed(2)])),
     },
     {
-      label: '动态回收期 (年)',
+      label: t('finance.table.paybackDynamic'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, r.paybackDynamic.toFixed(2)])),
     },
     {
-      label: 'LCOE',
+      label: t('finance.table.lcoe'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, r.lcoe.toFixed(2)])),
     },
     {
-      label: 'B/C Ratio',
+      label: t('finance.table.bcRatio'),
       ...Object.fromEntries(financeResults.map(r => [`s${r.scenarioId}`, r.benefitCostRatio.toFixed(2)])),
     },
   ];
 
+  // ─── 断电损失计算 ───
+  const monthlyUnserved = bestSimResult?.monthlyResults.map(m => m.totals.unserved_kWh) ?? [];
+  const totalUnserved = monthlyUnserved.reduce((s, v) => s + v, 0);
+  const annualOutageLoss = (totalUnserved / 24) * params.outageLoss.dailyProductionValue * params.outageLoss.lossRate;
+
+  const outageChartOption = {
+    tooltip: { trigger: 'axis' },
+    xAxis: {
+      type: 'category',
+      data: monthlyUnserved.map((_, i) => `${i + 1}${t('results.timeScale.month')}`),
+    },
+    yAxis: { type: 'value', name: 'kWh' },
+    series: [{
+      type: 'bar',
+      data: monthlyUnserved,
+      itemStyle: { color: '#ff4d4f' },
+    }],
+    grid: { left: 40, right: 10, top: 20, bottom: 20 },
+  };
+
+  // ─── 绿电溢价计算 ───
+  const annualPV_kWh = bestSimResult?.annual.pv_kWh ?? 0;
+  const annualGreen = annualPV_kWh / 1000;
+  const annualPremium = annualPV_kWh * params.greenPremium.premiumRate;
+  const projectLife = params.financial.projectLife;
+  const totalPremium = annualPremium * projectLife;
+
+  const handleDownloadPDF = async () => {
+    try {
+      message.loading({ content: t('finance.running'), key: 'pdf', duration: 0 });
+      await exportPDF('finance-report-content', 'pv-bess-finance-report');
+      message.success({ content: 'PDF OK', key: 'pdf' });
+    } catch (e: any) {
+      message.error({ content: e?.message ?? 'PDF export failed', key: 'pdf' });
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    try {
+      message.loading({ content: t('finance.running'), key: 'excel', duration: 0 });
+      await exportExcelReport(
+        bestResult,
+        `${t('params.scheme')} ${bestResult.scenarioId}`,
+        params
+      );
+      message.success({ content: 'Excel OK', key: 'excel' });
+    } catch (e: any) {
+      message.error({ content: e?.message ?? 'Excel export failed', key: 'excel' });
+    }
+  };
+
   return (
-    <div>
+    <div id="finance-report-content">
       {/* 最优方案 KPI */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={4}>
           <Card size="small">
-            <Statistic title="推荐方案" value={`方案${bestResult.scenarioId}`} />
+            <Statistic title={t('finance.recommended')} value={`${t('params.scheme')} ${bestResult.scenarioId}`} />
           </Card>
         </Col>
         <Col span={5}>
           <Card size="small">
-            <Statistic title="NPV" value={bestResult.npv} precision={0}
+            <Statistic title={t('finance.npv')} value={bestResult.npv} precision={0}
               prefix={bestResult.npv >= 0 ? '+' : ''} />
           </Card>
         </Col>
         <Col span={5}>
           <Card size="small">
-            <Statistic title="IRR" value={(bestResult.irr * 100).toFixed(1)} suffix="%" />
+            <Statistic title={t('finance.irr')} value={(bestResult.irr * 100).toFixed(1)} suffix="%" />
           </Card>
         </Col>
         <Col span={5}>
           <Card size="small">
-            <Statistic title="静态回收期" value={bestResult.paybackStatic.toFixed(2)} suffix="年" />
+            <Statistic title={t('finance.payback')} value={bestResult.paybackStatic.toFixed(2)} suffix="年" />
           </Card>
         </Col>
         <Col span={5}>
           <Card size="small">
-            <Statistic title="B/C Ratio" value={bestResult.benefitCostRatio.toFixed(2)} />
+            <Statistic title={t('finance.bcRatio')} value={bestResult.benefitCostRatio.toFixed(2)} />
           </Card>
         </Col>
       </Row>
@@ -173,8 +233,87 @@ export default function FinancePanel() {
         <ReactECharts option={cashflowChartOption} style={{ height: 300 }} />
       </Card>
 
+      {/* 断电损失 */}
+      {params.outageLoss.enabled && bestSimResult && (
+        <Card size="small" title={t('finance.outage.title')} style={{ marginBottom: 16 }}>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Statistic
+                title={t('finance.outage.totalHours')}
+                value={totalUnserved / 1000}
+                suffix="kWh"
+              />
+            </Col>
+            <Col span={6}>
+              <Statistic
+                title={t('finance.outage.annualLoss')}
+                value={annualOutageLoss}
+                prefix="-"
+                precision={0}
+              />
+            </Col>
+            <Col span={12}>
+              <ReactECharts option={outageChartOption} style={{ height: 120 }} />
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {/* 绿电溢价 */}
+      {params.greenPremium.enabled && bestSimResult && (
+        <Card size="small" title={t('finance.green.title')} style={{ marginBottom: 16 }}>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title={t('finance.green.annualGreen')}
+                value={annualGreen}
+                suffix="MWh"
+                precision={1}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title={t('finance.green.annualPremium')}
+                value={annualPremium}
+                prefix="+"
+                precision={0}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title={t('finance.green.totalPremium')}
+                value={totalPremium}
+                prefix="+"
+                precision={0}
+              />
+            </Col>
+          </Row>
+        </Card>
+      )}
+
       {/* 财务指标汇总表 */}
-      <Card size="small" title="财务指标汇总">
+      <Card
+        size="small"
+        title={t('finance.title')}
+        extra={
+          <Space>
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadPDF}
+            >
+              {t('report.downloadPDF')}
+            </Button>
+            <Button
+              size="small"
+              icon={<FileExcelOutlined />}
+              onClick={handleDownloadExcel}
+            >
+              {t('report.downloadExcel')}
+            </Button>
+          </Space>
+        }
+      >
         <Table
           dataSource={financeData.map((d, i) => ({ ...d, key: i }))}
           columns={financeColumns}

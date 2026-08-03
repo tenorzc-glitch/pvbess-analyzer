@@ -32,4 +32,15 @@ export interface FinanceResult {
     annualDemandCharge: number;
     annualTotal: number;
   };
+  /** 绿电溢价明细（仅 greenPremium.enabled 时存在） */
+  greenPremium?: {
+    annualGreenEnergy_kWh: number;
+    annualPremium: number;
+    totalPremium: number;
+  };
+  /** 断电损失明细（仅 outageLoss.enabled 时存在） */
+  outageLoss?: {
+    totalUnserved_kWh: number;
+    annualLoss: number;
+  };
 }

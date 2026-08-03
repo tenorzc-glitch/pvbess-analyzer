@@ -87,7 +87,7 @@ export default function AdminPanel() {
             pagination={{ pageSize: 10 }}
             columns={[
               {
-                title: '邮箱 / ID',
+                title: t('admin.email'),
                 dataIndex: 'email',
                 render: (v: string, r) => (
                   <Space direction="vertical" size={0}>
@@ -97,12 +97,12 @@ export default function AdminPanel() {
                 ),
               },
               {
-                title: '角色',
+                title: t('admin.role'),
                 dataIndex: 'role',
                 width: 100,
                 render: (v: string) => (
                   <Tag color={v === 'admin' ? 'gold' : 'blue'}>
-                    {v === 'admin' ? '管理员' : '用户'}
+                    {v === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')}
                   </Tag>
                 ),
               },
@@ -112,7 +112,7 @@ export default function AdminPanel() {
                 width: 100,
               },
               {
-                title: '注册时间',
+                title: t('admin.registerTime'),
                 dataIndex: 'created_at',
                 width: 140,
                 render: (v?: string) => v ? new Date(v).toLocaleDateString('zh-CN') : '-',

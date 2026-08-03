@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from './store/useProjectStore';
 import { useProfileStore } from './store/useProfileStore';
+import { useAuth } from './hooks/useAuth';
 import { ProfileData } from './types';
 
 /** 初始化：加载项目列表 + profile 数据 */
@@ -9,6 +10,7 @@ export default function AutoInit() {
   const navigate = useNavigate();
   const { loadProjects } = useProjectStore();
   const { setProfile } = useProfileStore();
+  const { user } = useAuth();
 
   useEffect(() => {
     loadProjects().then(() => {
@@ -33,7 +35,7 @@ export default function AutoInit() {
       setProfile(builtinProfile());
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
 
   return null;
 }

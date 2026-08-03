@@ -80,7 +80,7 @@ export default function Sidebar() {
       }}>
         <Space direction="vertical" style={{ width: '100%' }} size={8}>
           <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, display: 'block', wordBreak: 'break-all' }}>
-            {user?.email || '离线用户'}
+            {user?.email || t('common.offlineUser')}
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, display: 'block' }}>
             {isAdmin ? t('nav.admin') : t('nav.user')}

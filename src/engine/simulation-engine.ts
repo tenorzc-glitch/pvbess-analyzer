@@ -286,12 +286,7 @@ function computeAnnualSummary(
     }
 
     // 电网成本 = 购电量 × 均价
-    let totalGridCost = 0;
-    for (const it of mr.intervals) {
-      const price = mr.month === monthOfInterval(it, mr.month) ? 0 : 0;
-      // use grid price from profile
-    }
-    // 简化：用平均电价
+    // 简化：用平均电价（TOU 精确分时计价后续迭代）
     const avgPrice = params.grid.tariffType === 'flat'
       ? params.grid.flatPrice_perkWh
       : (params.grid.offPeakPrice_perkWh * 0.7 + params.grid.peakPrice_perkWh * 0.3);
@@ -317,10 +312,6 @@ function computeAnnualSummary(
     demandChargeCost,
     totalEnergyCost: gridCost + dieselCost + demandChargeCost,
   };
-}
-
-function monthOfInterval(_it: DispatchInterval, month: number): number {
-  return month;
 }
 
 // ─── 基准场景计算 ───────────────────────────────────────────

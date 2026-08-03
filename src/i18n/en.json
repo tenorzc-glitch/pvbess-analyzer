@@ -19,7 +19,7 @@
     "passwordMismatch": "Passwords do not match",
     "offlineNotSupported": "Registration not available offline. Use any email and password to login.",
     "offlineTip": "Click \"Login\" directly to enter without filling in anything",
-    "adminTip": "Admin: enter activation code 934676 at login"
+    "adminTip": "Admin: enter activation code"
   },
   "nav": {
     "projects": "Projects",
@@ -100,7 +100,20 @@
     "priceGrowth": "Price Growth",
     "opexGrowth": "OPEX Growth",
     "workDays": "Effective Days",
-    "rainySchedule": "Rainy Schedule"
+    "rainySchedule": "Rainy Schedule",
+    "outageLoss": {
+      "title": "Outage Loss",
+      "enabled": "Enable Outage Loss Estimation",
+      "dailyProductionValue": "Daily Production Value",
+      "lossRate": "Production Loss Rate"
+    },
+    "greenPremium": {
+      "title": "Green Energy Premium",
+      "enabled": "Enable Green Premium",
+      "premiumRate": "Green Premium Rate"
+    },
+    "downloadTemplate": "Download Template",
+    "uploadExcel": "Upload Excel"
   },
   "sizing": {
     "title": "Sizing Optimization",
@@ -111,6 +124,9 @@
     "bestPBP": "Best Payback",
     "bestNPV": "Best NPV",
     "specialPCS": "PCS=3×Load Scenario",
+    "running": "Scanning optimization...",
+    "detail": "Scan Results Detail",
+    "empty": "No results. Click \"Run Optimization\".",
     "table": {
       "bess": "BESS kWh",
       "pcs": "PCS kW",
@@ -135,7 +151,9 @@
       "annualPV": "Annual PV Gen",
       "annualGrid": "Annual Grid Import",
       "curtailRate": "Curtailment Rate",
-      "annualDiesel": "Annual Diesel"
+      "annualDiesel": "Annual Diesel",
+      "greenEnergy": "Annual Green Energy",
+      "outageHours": "Annual Outage Hours"
     },
     "compare": {
       "title": "Scenario Comparison",
@@ -153,6 +171,18 @@
       "week": "Weekly",
       "month": "Monthly",
       "year": "Yearly"
+    },
+    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "sankey": {
+      "title": "Energy Flow Sankey",
+      "pvGen": "PV Generation",
+      "gridImport": "Grid Import",
+      "bessDischarge": "BESS Discharge",
+      "dieselGen": "Diesel Gen",
+      "toLoad": "To Load",
+      "toBess": "Charge",
+      "curtailment": "Curtailment",
+      "loss": "Loss"
     }
   },
   "finance": {
@@ -177,7 +207,19 @@
       "bcRatio": "B/C Ratio"
     },
     "greenPremium": "Green Energy Premium",
-    "outageLoss": "Outage Loss Estimate"
+    "outageLoss": "Outage Loss Estimate",
+    "outage": {
+      "title": "Outage Loss Estimate",
+      "annualLoss": "Annual Outage Loss",
+      "totalHours": "Annual Outage Hours"
+    },
+    "green": {
+      "title": "Green Energy Premium",
+      "annualGreen": "Annual Green Energy",
+      "annualPremium": "Annual Premium Revenue",
+      "totalPremium": "Lifecycle Premium PV"
+    },
+    "paybackPoint": "Payback Point"
   },
   "compare": {
     "title": "Brand Comparison",
@@ -219,6 +261,11 @@
     "offlineTip": "Offline mode. Admin features unavailable.",
     "projectCount": "Projects",
     "projectsHint": "Open \"Projects\" from the sidebar to manage projects.",
+    "email": "Email / ID",
+    "role": "Role",
+    "roleAdmin": "Admin",
+    "roleUser": "User",
+    "registerTime": "Registered",
     "deleteUser": "Delete User",
     "deleteUserConfirm": "Delete this user and all their projects?"
   },
@@ -237,6 +284,10 @@
     "close": "Close",
     "back": "Back",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "notFound": "404 - Page Not Found",
+    "best": "Best",
+    "metric": "Metric",
+    "offlineUser": "Offline User"
   }
 }

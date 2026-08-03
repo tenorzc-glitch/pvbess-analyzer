@@ -174,8 +174,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         saveUser(updated);
         return true;
       }
-      // 如果 RPC 不存在或权限不足，回退到密码校验（开发模式）
-      if (password === ADMIN_PASSWORD) {
+      // 在线模式 RPC 失败时拒绝提权（仅开发环境允许密码回退）
+      if (import.meta.env.DEV && password === ADMIN_PASSWORD) {
         const updated = { ...user, role: 'admin' as const };
         setUser(updated);
         saveUser(updated);

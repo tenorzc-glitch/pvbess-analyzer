@@ -19,7 +19,7 @@
     "passwordMismatch": "两次密码不一致",
     "offlineNotSupported": "离线模式不支持注册，请使用任意邮箱和密码登录",
     "offlineTip": "直接点击\"登录\"无需填写任何信息即可进入",
-    "adminTip": "管理员功能需在登录时输入激活码 934676"
+    "adminTip": "管理员需输入激活码"
   },
   "nav": {
     "projects": "项目列表",
@@ -100,7 +100,20 @@
     "priceGrowth": "价格年增长",
     "opexGrowth": "OPEX 年增长",
     "workDays": "有效工作日",
-    "rainySchedule": "雨季排程"
+    "rainySchedule": "雨季排程",
+    "outageLoss": {
+      "title": "断电损失",
+      "enabled": "启用断电损失估算",
+      "dailyProductionValue": "日均产值",
+      "lossRate": "生产中断损失率"
+    },
+    "greenPremium": {
+      "title": "绿电品牌溢价",
+      "enabled": "启用绿电溢价",
+      "premiumRate": "绿电溢价率"
+    },
+    "downloadTemplate": "下载模板",
+    "uploadExcel": "上传 Excel"
   },
   "sizing": {
     "title": "定容寻优",
@@ -111,6 +124,9 @@
     "bestPBP": "最优回收期",
     "bestNPV": "最优 NPV",
     "specialPCS": "PCS=3×负载档位",
+    "running": "正在扫描优化...",
+    "detail": "扫描结果明细",
+    "empty": "暂无寻优结果，请点击\"开始寻优\"",
     "table": {
       "bess": "储能 kWh",
       "pcs": "PCS kW",
@@ -135,7 +151,9 @@
       "annualPV": "年光伏发电",
       "annualGrid": "年电网购电",
       "curtailRate": "弃光率",
-      "annualDiesel": "年柴油消耗"
+      "annualDiesel": "年柴油消耗",
+      "greenEnergy": "年绿电消纳",
+      "outageHours": "年断电时长"
     },
     "compare": {
       "title": "方案对比",
@@ -153,6 +171,18 @@
       "week": "周",
       "month": "月",
       "year": "年"
+    },
+    "months": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
+    "sankey": {
+      "title": "能量流 Sankey 图",
+      "pvGen": "光伏发电",
+      "gridImport": "电网购电",
+      "bessDischarge": "电池放电",
+      "dieselGen": "柴油发电",
+      "toLoad": "供给负荷",
+      "toBess": "充电",
+      "curtailment": "弃光",
+      "loss": "损耗"
     }
   },
   "finance": {
@@ -177,7 +207,19 @@
       "bcRatio": "B/C Ratio"
     },
     "greenPremium": "绿电品牌溢价",
-    "outageLoss": "断电损失估算"
+    "outageLoss": "断电损失估算",
+    "outage": {
+      "title": "断电损失估算",
+      "annualLoss": "年断电损失",
+      "totalHours": "年累计断电小时"
+    },
+    "green": {
+      "title": "绿电品牌溢价",
+      "annualGreen": "年绿电消纳量",
+      "annualPremium": "年溢价收益",
+      "totalPremium": "全生命周期溢价现值"
+    },
+    "paybackPoint": "回收点"
   },
   "compare": {
     "title": "品牌对比",
@@ -219,6 +261,11 @@
     "offlineTip": "当前离线模式，管理功能不可用",
     "projectCount": "项目数",
     "projectsHint": "项目详情请在左侧\"项目列表\"中查看",
+    "email": "邮箱 / ID",
+    "role": "角色",
+    "roleAdmin": "管理员",
+    "roleUser": "用户",
+    "registerTime": "注册时间",
     "deleteUser": "删除用户",
     "deleteUserConfirm": "确定删除该用户及其所有项目？"
   },
@@ -237,6 +284,10 @@
     "close": "关闭",
     "back": "返回",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "notFound": "404 - 页面未找到",
+    "best": "最优",
+    "metric": "指标",
+    "offlineUser": "离线用户"
   }
 }

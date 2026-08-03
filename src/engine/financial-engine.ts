@@ -7,8 +7,7 @@
  * 3. 投资指标：NPV、IRR、回收期、LCOE、B/C Ratio
  */
 
-import { InputParams, ScenarioConfig } from '../types';
-import { CashflowRow, FinanceResult } from '../types/finance';
+import { InputParams, ScenarioConfig, FinanceResult, CashflowRow } from '../types';
 import { EngineScenarioResult, BaselineOutput } from './types';
 
 /** 计算单个方案的完整财务结果 */
@@ -107,6 +106,26 @@ export function computeFinance(
 
   const benefitCostRatio = (npv + totalCapex) / totalCapex;
 
+  // 绿电溢价明细
+  let greenPremiumDetail: FinanceResult['greenPremium'] = undefined;
+  if (params.greenPremium?.enabled) {
+    const annualGreenEnergy = simResult.annual.pv_kWh;
+    const annualPremium = annualGreenEnergy * params.greenPremium.premiumRate;
+    const totalPremium = annualPremium * params.financial.projectLife;
+    greenPremiumDetail = { annualGreenEnergy_kWh: annualGreenEnergy, annualPremium, totalPremium };
+  }
+
+  // 断电损失明细
+  let outageLossDetail: FinanceResult['outageLoss'] = undefined;
+  if (params.outageLoss?.enabled) {
+    let totalUnserved = 0;
+    for (const mr of simResult.monthlyResults) {
+      totalUnserved += mr.totals.unserved_kWh || 0;
+    }
+    const annualLoss = (totalUnserved / 24) * params.outageLoss.dailyProductionValue * params.outageLoss.lossRate;
+    outageLossDetail = { totalUnserved_kWh: totalUnserved, annualLoss };
+  }
+
   return {
     scenarioId: scenario.id,
     capex: totalCapex,
@@ -124,6 +143,8 @@ export function computeFinance(
       annualDemandCharge: baseline.annualDemandCharge,
       annualTotal: baseline.annualTotalCost,
     },
+    greenPremium: greenPremiumDetail,
+    outageLoss: outageLossDetail,
   };
 }
 

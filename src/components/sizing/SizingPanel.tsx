@@ -4,10 +4,12 @@ import ReactECharts from 'echarts-for-react';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { runSizingOptimization, SizingRecord, SizingResult } from '../../engine/sizing-engine';
+import { useTranslation } from 'react-i18next';
 
 const { Title, Text } = Typography;
 
 export default function SizingPanel() {
+  const { t } = useTranslation();
   const { params } = useParamsStore();
   const { profile } = useProfileStore();
 
@@ -39,14 +41,14 @@ export default function SizingPanel() {
 
   // PBP vs Capacity chart
   const pbpOption = {
-    title: { text: '回收期 vs 储能容量', left: 'center' },
+    title: { text: `${t('sizing.bestPBP')}`, left: 'center' },
     tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', name: '储能容量 (kWh)', data: records.map(r => r.bessCapacity_kWh) },
     yAxis: { type: 'value', name: '回收期 (年)' },
     series: [{
       type: 'line', data: records.map(r => r.finance.paybackStatic),
       markPoint: result?.bestPBP ? {
-        data: [{ name: '最优', coord: [records.indexOf(result.bestPBP), result.bestPBP.finance.paybackStatic], value: `${result.bestPBP.finance.paybackStatic.toFixed(2)}年` }],
+        data: [{ name: t('common.best'), coord: [records.indexOf(result.bestPBP), result.bestPBP.finance.paybackStatic], value: `${result.bestPBP.finance.paybackStatic.toFixed(2)}年` }],
       } : undefined,
     }],
     grid: { left: 60, right: 20, top: 40, bottom: 30 },
@@ -54,42 +56,42 @@ export default function SizingPanel() {
 
   // NPV vs Capacity chart
   const npvOption = {
-    title: { text: 'NPV vs 储能容量', left: 'center' },
+    title: { text: `${t('sizing.bestNPV')}`, left: 'center' },
     tooltip: { trigger: 'axis' },
     xAxis: { type: 'category', name: '储能容量 (kWh)', data: records.map(r => r.bessCapacity_kWh) },
     yAxis: { type: 'value', name: 'NPV' },
     series: [{
       type: 'bar', data: records.map(r => r.finance.npv),
       markPoint: result?.bestNPV ? {
-        data: [{ name: '最优', coord: [records.indexOf(result.bestNPV), result.bestNPV.finance.npv], value: `${(result.bestNPV.finance.npv / 1000).toFixed(0)}k` }],
+        data: [{ name: t('common.best'), coord: [records.indexOf(result.bestNPV), result.bestNPV.finance.npv], value: `${(result.bestNPV.finance.npv / 1000).toFixed(0)}k` }],
       } : undefined,
     }],
     grid: { left: 60, right: 20, top: 40, bottom: 30 },
   };
 
   const columns = [
-    { title: '储能 (kWh)', dataIndex: 'bessCapacity_kWh', key: 'bess', width: 100 },
-    { title: 'PCS (kW)', dataIndex: 'pcsPower_kW', key: 'pcs', width: 100 },
+    { title: t('sizing.table.bess'), dataIndex: 'bessCapacity_kWh', key: 'bess', width: 100 },
+    { title: t('sizing.table.pcs'), dataIndex: 'pcsPower_kW', key: 'pcs', width: 100 },
     {
-      title: 'CAPEX', dataIndex: ['finance', 'capex'], key: 'capex',
+      title: t('sizing.table.capex'), dataIndex: ['finance', 'capex'], key: 'capex',
       render: (v: number) => `${(v / 1000).toFixed(0)}k`,
     },
     {
-      title: 'NPV', dataIndex: ['finance', 'npv'], key: 'npv',
+      title: t('sizing.table.npv'), dataIndex: ['finance', 'npv'], key: 'npv',
       render: (v: number, _: SizingRecord, idx: number) => {
         const isBest = result?.bestNPV?.bessCapacity_kWh === _.bessCapacity_kWh;
         return <Text style={{ color: isBest ? '#52c41a' : undefined, fontWeight: isBest ? 'bold' : undefined }}>{(v / 1000).toFixed(0)}k</Text>;
       },
     },
     {
-      title: '回收期 (年)', dataIndex: ['finance', 'paybackStatic'], key: 'pbp',
+      title: t('sizing.table.payback'), dataIndex: ['finance', 'paybackStatic'], key: 'pbp',
       render: (v: number, _: SizingRecord) => {
         const isBest = result?.bestPBP?.bessCapacity_kWh === _.bessCapacity_kWh;
         return <Text style={{ color: isBest ? '#1677ff' : undefined, fontWeight: isBest ? 'bold' : undefined }}>{v.toFixed(2)}</Text>;
       },
     },
     {
-      title: 'IRR', dataIndex: ['finance', 'irr'], key: 'irr',
+      title: t('sizing.table.irr'), dataIndex: ['finance', 'irr'], key: 'irr',
       render: (v: number) => `${(v * 100).toFixed(1)}%`,
     },
   ];
@@ -97,10 +99,10 @@ export default function SizingPanel() {
   return (
     <div style={{ maxWidth: 1000 }}>
       <Card size="small" style={{ marginBottom: 16 }}>
-        <Title level={5}>定容寻优</Title>
+        <Title level={5}>{t('sizing.title')}</Title>
         <Row gutter={16} style={{ marginBottom: 12 }}>
           <Col span={6}>
-            <Text>光伏容量 (kWp)</Text>
+            <Text>{t('sizing.pvCapacity')}</Text>
             <InputNumber value={pvCapacity} onChange={v => setPvCapacity(v || 500)} min={0} max={10000} style={{ width: '100%' }} />
           </Col>
           <Col span={6}>
@@ -112,7 +114,7 @@ export default function SizingPanel() {
             <InputNumber value={bessMax} onChange={v => setBessMax(v || 3000)} min={0} max={10000} style={{ width: '100%' }} />
           </Col>
           <Col span={4}>
-            <Text>步长 (kWh)</Text>
+            <Text>{t('sizing.step')}</Text>
             <Select value={step} onChange={setStep} options={[
               { value: 100, label: '100 kWh' },
               { value: 200, label: '200 kWh' },
@@ -121,20 +123,20 @@ export default function SizingPanel() {
           </Col>
           <Col span={2} style={{ display: 'flex', alignItems: 'flex-end' }}>
             <Button type="primary" onClick={handleRun} loading={running}>
-              寻优
+              {t('sizing.run')}
             </Button>
           </Col>
         </Row>
       </Card>
 
-      {running && <Spin style={{ display: 'block', margin: '40px auto' }} tip="正在扫描优化..." />}
+      {running && <Spin style={{ display: 'block', margin: '40px auto' }} tip={t('sizing.running')} />}
 
       {result && !running && (
         <>
           {/* Best Results */}
           <Row gutter={16} style={{ marginBottom: 16 }}>
             <Col span={12}>
-              <Card size="small" title="最优回收期 (PBP)">
+              <Card size="small" title={t('sizing.bestPBP')}>
                 {result.bestPBP && (
                   <>
                     <Text strong>{result.bestPBP.bessCapacity_kWh} kWh / {result.bestPBP.pcsPower_kW} kW</Text>
@@ -145,7 +147,7 @@ export default function SizingPanel() {
               </Card>
             </Col>
             <Col span={12}>
-              <Card size="small" title="最优 NPV">
+              <Card size="small" title={t('sizing.bestNPV')}>
                 {result.bestNPV && (
                   <>
                     <Text strong>{result.bestNPV.bessCapacity_kWh} kWh / {result.bestNPV.pcsPower_kW} kW</Text>
@@ -160,7 +162,7 @@ export default function SizingPanel() {
           {/* PCS=3×Load 特殊档 */}
           {result.specialPCS && (
             <Card size="small" style={{ marginBottom: 16, borderColor: '#722ed1' }}>
-              <Text strong style={{ color: '#722ed1' }}>PCS=3×负载档位: </Text>
+              <Text strong style={{ color: '#722ed1' }}>{t('sizing.specialPCS')}: </Text>
               <Text>{result.specialPCS.bessCapacity_kWh} kWh / {result.specialPCS.pcsPower_kW} kW — </Text>
               <Text>NPV: {(result.specialPCS.finance.npv / 1000).toFixed(0)}k | 回收期: {result.specialPCS.finance.paybackStatic.toFixed(2)} 年</Text>
             </Card>
@@ -177,7 +179,7 @@ export default function SizingPanel() {
           </Row>
 
           {/* Table */}
-          <Card size="small" title="扫描结果明细">
+          <Card size="small" title={t('sizing.detail')}>
             <Table
               dataSource={records.map((r, i) => ({ ...r, key: i }))}
               columns={columns}
@@ -188,7 +190,7 @@ export default function SizingPanel() {
         </>
       )}
 
-      {!result && !running && <Empty description={'设置光伏容量和储能范围，点击"寻优"开始扫描'} />}
+      {!result && !running && <Empty description={t('sizing.empty')} />}
     </div>
   );
 }
