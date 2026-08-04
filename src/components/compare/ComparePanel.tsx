@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useFinanceStore } from '../../store/useFinanceStore';
+import { useReportStore } from '../../store/useReportStore';
 import {
   BrandParams, BrandMap, FALLBACK_BRANDS, loadBrandParams,
   computeBrandCapex, estimateHWFinance,
@@ -16,7 +17,9 @@ export default function ComparePanel() {
   const { results: financeResults } = useFinanceStore();
 
   const [brands, setBrands] = useState<BrandMap>(FALLBACK_BRANDS);
-  const [includeHW, setIncludeHW] = useState(false);
+  // includeHW 共享给报告页：打开华为对比 → 报告自动含华为章（需求②）
+  const includeHW = useReportStore((s) => s.includeHW);
+  const setIncludeHW = useReportStore((s) => s.setIncludeHW);
   const [dataSource, setDataSource] = useState<'supabase' | 'fallback'>('fallback');
 
   // 从 Supabase 读取品牌参数；失败则使用内置默认值

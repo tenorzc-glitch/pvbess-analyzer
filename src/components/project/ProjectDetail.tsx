@@ -12,6 +12,7 @@ import SizingPanel from '../sizing/SizingPanel';
 import ResultsPanel from '../results/ResultsPanel';
 import FinancePanel from '../finance/FinancePanel';
 import ComparePanel from '../compare/ComparePanel';
+import ReportPanel from '../report/ReportPanel';
 
 const { Title } = Typography;
 
@@ -74,6 +75,7 @@ export default function ProjectDetail() {
     { key: 'results', label: t('nav.results'), children: <ResultsPanel /> },
     { key: 'finance', label: t('nav.finance'), children: <FinancePanel /> },
     { key: 'compare', label: t('nav.compare'), children: <ComparePanel /> },
+    { key: 'report', label: t('nav.report'), children: <ReportPanel /> },
   ];
 
   return (

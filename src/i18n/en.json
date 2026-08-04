@@ -240,7 +240,20 @@
       "grid": "Grid Cost Saving",
       "diesel": "Diesel Cost Saving"
     },
-    "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "months": [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec"
+    ],
     "sankey": {
       "title": "Energy Flow Sankey",
       "pvGen": "PV Generation",
@@ -317,8 +330,101 @@
     "includeGreen": "Include Green Premium",
     "includeOutage": "Include Outage Loss",
     "compareWithHW": "Include HW Comparison",
-    "cover": "PV+BESS Investment Analysis Report",
-    "date": "Report Date"
+    "date": "Report Date",
+    "cover": {
+      "title": "PV+BESS Investment Analysis Report",
+      "subtitle": "Investment Proposal for Photovoltaic + Battery Energy Storage",
+      "preparedFor": "Prepared For",
+      "preparedBy": "Prepared By",
+      "currencyNote": "All amounts in {{currency}}"
+    },
+    "params": {
+      "pvCap": "PV Capacity (kWp)",
+      "bessCap": "BESS Capacity (kWh)",
+      "pcs": "PCS Power (kW)",
+      "rte": "Round-trip Efficiency (RTE)",
+      "socWindow": "SOC Operating Window",
+      "contractDemand": "Contract Demand (kW)",
+      "touPeak": "Peak Price",
+      "touOffpeak": "Off-Peak/Flat Price",
+      "demandRate": "Demand Charge",
+      "demandPenalty": "Excess Demand Penalty Rate",
+      "outageModel": "Grid Outage Model",
+      "outageModelValue": "{{days}} workdays/month × {{minutes}} min each (from {{start}}), ≈{{hours}} h/year",
+      "dieselPrice": "Diesel Price",
+      "projectLife": "Project Life",
+      "discountRate": "Discount Rate",
+      "capexUnitPV": "PV Turnkey Unit Cost",
+      "capexUnitBESS": "BESS Turnkey Unit Cost"
+    },
+    "strategy": {
+      "s1": "PV serves the load first; surplus charges the battery. No grid feed-in (feed-in = 0); excess is curtailed",
+      "s2": "Battery discharges during peak-price hours for arbitrage and shaves grid peak demand",
+      "s3": "Demand control: grid draw capped at 105% of the {{demand}} kW contract demand to avoid excess penalties",
+      "s4": "During outage windows ({{minutes}} min from {{start}}), battery and diesel jointly back up critical loads",
+      "s5": "Diesel stops as soon as the grid returns — pure outage backup only",
+      "s6": "Battery SOC operates within {{min}}–{{max}}, keeping reserve energy for unexpected outages",
+      "s7": "On rainy-season/maintenance shutdown days the plant load is zero — no energy consumed",
+      "s8": "15-minute settlement: peak {{peak}}/kWh, off-peak {{offpeak}}/kWh",
+      "dispatchChart": "Representative Day 15-min Dispatch"
+    },
+    "savings": {
+      "baseline": "Grid-only Baseline",
+      "project": "PV+BESS Project",
+      "saving": "Annual Saving",
+      "gridEnergy": "Energy Charges",
+      "demand": "Demand Charges (incl. penalties)",
+      "diesel": "Diesel Cost",
+      "total": "Total",
+      "greenRow": "Green Premium Revenue",
+      "outageRow": "Avoided Outage Loss",
+      "firstYearTotal": "First-year Gross Savings",
+      "firstYearOpex": "First-year OPEX",
+      "firstYearNet": "First-year Net Cash Flow",
+      "monthlyChart": "Monthly Savings Breakdown",
+      "note": "Note: baseline = grid-only with diesel backup during outage windows; demand charges include excess penalties; revenue grows with tariff escalation; OPEX includes on-site battery balancing and coolant replacement."
+    },
+    "invest": {
+      "capexPV": "PV CAPEX",
+      "capexBESS": "BESS CAPEX",
+      "capexTotal": "Total CAPEX",
+      "cashflowTable": "Lifecycle Cash Flow",
+      "year": "Year",
+      "revenue": "Revenue",
+      "opex": "OPEX",
+      "net": "Net Cash Flow",
+      "cumDiscounted": "Cumulative Discounted CF"
+    },
+    "config": {
+      "scheme": "Report Scheme",
+      "autoBest": "Auto (Best NPV)",
+      "customer": "Customer Name",
+      "customerPh": "e.g. Fazenda Boa Vista",
+      "company": "Prepared By",
+      "companyPh": "e.g. ABC Energy Solutions",
+      "repMonth": "Representative Month",
+      "exportPdf": "Export PDF",
+      "exporting": "Generating PDF..."
+    },
+    "sec": {
+      "params": "1. System Parameters",
+      "strategy": "2. Operation Strategy",
+      "savings": "3. Savings Breakdown",
+      "energyFlow": "4. Energy Flow",
+      "invest": "5. Investment Returns",
+      "hw": "6. Additional Benefits with Huawei ESS"
+    },
+    "hw": {
+      "paramTitle": "Huawei vs Industry Average: Key Parameters",
+      "sohEnd": "SOH (Year 15)",
+      "strategyDiffTitle": "Operation Strategy Differences",
+      "d1": "Higher RTE ({{hw}}% vs {{ind}}%): per-cycle loss drops from {{indLoss}}% to {{hwLoss}}% — the same charged energy serves more load",
+      "d2": "Slower degradation (Year-15 SOH {{hwSoh}}% vs {{indSoh}}%): more usable energy and savings in later years",
+      "d3": "Lower OPEX rate ({{hwOpex}}% vs {{indOpex}}%) at a higher upfront cost (turnkey {{hwCost}} vs {{indCost}})",
+      "savingTitle": "Financial Comparison (simplified same-capacity estimate)",
+      "energyTitle": "Energy Flow Improvement",
+      "energyText": "Estimated from the scheme's annual charge of {{charge}} kWh: raising RTE from {{ind}}% to {{hw}}% yields ≈{{kwh}} kWh more delivered energy per year ({{pct}}% less conversion loss)."
+    }
   },
   "theme": {
     "light": "Light Mode",
@@ -379,6 +485,7 @@
     "metric": "Metric",
     "offlineUser": "Offline User",
     "perMonth": "mo",
+    "perYear": "yr",
     "years": "yr",
     "loadFailed": "Load failed",
     "simFailed": "Simulation failed",

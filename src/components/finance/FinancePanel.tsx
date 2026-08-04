@@ -9,6 +9,7 @@ import { useParamsStore } from '../../store/useParamsStore';
 import { FinanceResult } from '../../types/finance';
 import { exportPDF, exportExcelReport } from '../../utils/export';
 import { BrandMap, FALLBACK_BRANDS, loadBrandParams, estimateHWFinance } from '../../utils/brand';
+import { buildCumCashflowOption } from '../../utils/report-charts';
 
 const { Title, Text } = Typography;
 
@@ -82,29 +83,8 @@ export default function FinancePanel() {
     grid: { left: 60, right: 20, top: 40, bottom: 30 },
   };
 
-  // ─── 累计现金流图 ───
-  const cashflowChartOption = {
-    title: { text: `${t('params.scheme')} ${bestResult.scenarioId} ${t('finance.cashflowChart')}`, left: 'center' },
-    tooltip: { trigger: 'axis' },
-    xAxis: {
-      type: 'category',
-      data: bestResult.cashflow.map(r => `Y${r.year}`),
-    },
-    yAxis: { type: 'value', name: t('finance.chart.cumulativeCashflow') },
-    series: [
-      {
-        name: t('finance.cashflowChart'),
-        type: 'line',
-        data: bestResult.cashflow.map(r => r.cumulativeDiscountedCF),
-        markLine: {
-          data: [{ yAxis: 0, label: { formatter: t('finance.paybackPoint') } }],
-          lineStyle: { color: '#ff4d4f', type: 'dashed' },
-        },
-        areaStyle: { color: 'rgba(22,119,255,0.1)' },
-      },
-    ],
-    grid: { left: 60, right: 20, top: 40, bottom: 30 },
-  };
+  // ─── 累计现金流图（option builder 已抽取至 report-charts.ts） ───
+  const cashflowChartOption = buildCumCashflowOption(t, bestResult);
 
   // ─── 财务对比表 ───
   const financeColumns = [
