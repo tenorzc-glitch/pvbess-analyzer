@@ -1,9 +1,17 @@
 /**
  * 调度仿真引擎
- * 
+ *
  * 核心逻辑：15 分钟步长 × 12 典型月日
  * 光伏优先供负荷 → 余量充电池 → 弃光
  * 负荷不足 ← 电池放电 ← 电网购电 ← 柴油机（最后手段）
+ *
+ * 批次4 重构：
+ * - 停电双变体模型：正常工作日 / 停电工作日（窗口内 gridAvailable=false，油机+储能备电）；
+ *   停运日（检修/雨季）全厂停产，负荷归零不计（灌溉场景物理意义：雨天不泵水）
+ * - E3 分时计价：购电费用逐时段按 profile.gridPrice 累计（TOU 精确）
+ * - 需量费月度口径：合同需量×费率 + 超需部分×惩罚费率（超需容忍 5%）
+ * - E8 量纲修复：未供电量以"小时"计（unservedHours）
+ * - 柴油机简化为纯停电备用：仅电网不可用时兜底，电网恢复即停（去除离网型滞回逻辑）
  */
 
 import { InputParams, ScenarioConfig, ProfileData, ProfileInterval } from '../types';
@@ -24,6 +32,36 @@ export function effectiveWorkDays(params: InputParams, month: number): number {
   const rainyIdx = wd.rainyMonths?.indexOf(month) ?? -1;
   const rainyOutage = rainyIdx >= 0 ? (wd.rainyOutageDays?.[rainyIdx] || 0) : 0;
   return Math.max(base - maintenance - rainyOutage, 0);
+}
+
+/** 解析停电窗口起始时刻 'HH:MM' → 时段索引 */
+export function parseOutageWindow(windowStart: string, stepH: number): number {
+  const parts = (windowStart || '17:30').split(':');
+  const hh = Number(parts[0]) || 0;
+  const mm = Number(parts[1]) || 0;
+  return Math.min(
+    Math.floor((hh * 60 + mm) / (stepH * 60)),
+    Math.round(24 / stepH) - 1
+  );
+}
+
+/** 生成停电日 profile：窗口内时段 gridAvailable=false（不改动原 profile） */
+function buildOutageProfile(
+  monthProfile: ProfileInterval[],
+  startSlot: number,
+  slots: number
+): ProfileInterval[] {
+  return monthProfile.map((p, i) =>
+    i >= startSlot && i < startSlot + slots ? { ...p, gridAvailable: false } : p
+  );
+}
+
+/** 月度需量费 = 合同需量×需量费率 + 超需部分×惩罚费率（容忍度内不罚） */
+export function monthlyDemandCharge(params: InputParams, monthPeakGrid_kW: number): number {
+  const contract = params.grid.contractDemand_kW;
+  const allowed = contract * (1 + (params.grid.excessDemandTolerance ?? 0));
+  const excess = Math.max(0, monthPeakGrid_kW - allowed);
+  return contract * params.grid.demandCharge_perKW + excess * params.grid.excessDemandRate;
 }
 
 // ─── 调度核心 ───────────────────────────────────────────────
@@ -53,98 +91,106 @@ export function runScenarioSimulation(
   };
 }
 
-/** 运行单月调度仿真 */
+/** 运行一整日（96 时段）调度，返回逐时段结果 */
+function runDayDispatch(
+  params: InputParams,
+  dayProfile: ProfileInterval[],
+  bessCapacity: number,
+  pcsPower: number,
+  pvCapacity: number
+): DispatchInterval[] {
+  const intervals: DispatchInterval[] = [];
+  let state: DispatchState = { soc: params.bess.socInitial, prevDGOn: false };
+  const stepH = params.timeStep;
+
+  for (let t = 0; t < dayProfile.length; t++) {
+    const result = dispatchInterval(
+      params, dayProfile[t], state, stepH,
+      bessCapacity, pcsPower, pvCapacity
+    );
+    intervals.push(result);
+    state = { soc: result.socEnd, prevDGOn: result.dieselGen > 0 };
+  }
+  return intervals;
+}
+
+/** 运行单月调度仿真（双变体：正常工作日 / 停电工作日；停运日全厂停产不计） */
 function runMonthlySimulation(
   params: InputParams,
   scenario: ScenarioConfig,
   monthProfile: ProfileInterval[],
   month: number
 ): EngineMonthResult {
-  const intervals: DispatchInterval[] = [];
-  const bessCapacity = scenario.bessCapacity_kWh;
-  const pcsPower = scenario.pcsPower_kW;
-  const pvCapacity = scenario.pvCapacity_kWp;
   const days = DAYS_PER_MONTH[month - 1];
-  // 光储有效工作天数；停运日负荷由电网/油机承担（PV=0、储能停用）
+  // 光储有效工作天数；停运日（检修/雨季）全厂停产——负荷归零，
+  // 既不发电也不耗电（灌溉场景：雨天不泵水、检修日不生产）
   const workDays = effectiveWorkDays(params, month);
-  const offDays = Math.max(days - workDays, 0);
 
-  // 初始化状态
-  let state: DispatchState = {
-    soc: params.bess.socInitial,
-    prevDGOn: false,
+  // 停电变体参数：每月停电工作日数（不超过有效工作日），窗口内电网不可用
+  const outageCfg = params.grid.outage;
+  const outageDays = Math.min(outageCfg?.eventDaysPerMonth?.[month - 1] || 0, workDays);
+  const normalDays = Math.max(workDays - outageDays, 0);
+  const stepH = params.timeStep;
+  const outageSlots = Math.max(1, Math.ceil((outageCfg?.eventMinutes || 30) / (stepH * 60)));
+  const outageStart = parseOutageWindow(outageCfg?.windowStart || '17:30', stepH);
+
+  const totals = {
+    pv_kWh: 0, load_kWh: 0, grid_kWh: 0, diesel_kWh: 0, dieselFuel_L: 0,
+    curtailment_kWh: 0, bessCharge_kWh: 0, bessDischarge_kWh: 0, unserved_kWh: 0,
+    gridCost: 0, monthPeakGrid_kW: 0, unservedHours: 0,
   };
 
-  // 柴油机最低稳定功率
-  const dgMinStable = params.diesel.minStablePower_kW;
-  const dgRatedPower = params.diesel.ratedPower_kW;
-  const dgEfficiency = params.diesel.efficiency_kWhPerL;
+  const accumulate = (dayIntervals: DispatchInterval[], mult: number) => {
+    if (mult <= 0) return;
+    const t = sumDayIntervals(dayIntervals, stepH);
+    totals.pv_kWh += t.pv_kWh * mult;
+    totals.load_kWh += t.load_kWh * mult;
+    totals.grid_kWh += t.grid_kWh * mult;
+    totals.diesel_kWh += t.diesel_kWh * mult;
+    totals.dieselFuel_L += t.dieselFuel_L * mult;
+    totals.curtailment_kWh += t.curtailment_kWh * mult;
+    totals.bessCharge_kWh += t.bessCharge_kWh * mult;
+    totals.bessDischarge_kWh += t.bessDischarge_kWh * mult;
+    totals.unserved_kWh += t.unserved_kWh * mult;
+    totals.gridCost += t.gridCost * mult;
+    totals.unservedHours += t.unservedHours * mult;
+    totals.monthPeakGrid_kW = Math.max(totals.monthPeakGrid_kW, t.peakGrid_kW);
+  };
 
-  const stepH = params.timeStep; // 0.25h
+  // 变体1：正常工作日（光储正常运行）
+  const normalIntervals = runDayDispatch(
+    params, monthProfile,
+    scenario.bessCapacity_kWh, scenario.pcsPower_kW, scenario.pvCapacity_kWp
+  );
+  accumulate(normalIntervals, normalDays);
 
-  for (let t = 0; t < monthProfile.length; t++) {
-    const prof = monthProfile[t];
-    const result = dispatchInterval(
-      params, scenario, prof, state, stepH,
-      bessCapacity, pcsPower, pvCapacity,
-      dgMinStable, dgRatedPower, dgEfficiency
+  // 变体2：停电工作日（窗口内电网不可用，储能+油机备电）
+  if (outageDays > 0) {
+    const outageProfile = buildOutageProfile(monthProfile, outageStart, outageSlots);
+    const outageIntervals = runDayDispatch(
+      params, outageProfile,
+      scenario.bessCapacity_kWh, scenario.pcsPower_kW, scenario.pvCapacity_kWp
     );
-
-    intervals.push(result);
-    state = {
-      soc: result.socEnd,
-      prevDGOn: result.dieselGen > 0,
-    };
+    accumulate(outageIntervals, outageDays);
   }
 
-  // 工作日汇总（典型日 × 工作天数）
-  const totals = computeMonthTotals(intervals, workDays, stepH);
-
-  // 停运日：同样负荷曲线，PV=0、储能停用（pcs=0），由电网/油机供电
-  if (offDays > 0) {
-    let offState: DispatchState = { soc: params.bess.socInitial, prevDGOn: false };
-    const offIntervals: DispatchInterval[] = [];
-    for (let t = 0; t < monthProfile.length; t++) {
-      const prof = monthProfile[t];
-      const result = dispatchInterval(
-        params, scenario, prof, offState, stepH,
-        1 /* bessCapacity 置 1 避免除零，pcs=0 使充放为 0 */,
-        0 /* pcsPower */,
-        0 /* pvCapacity */,
-        dgMinStable, dgRatedPower, dgEfficiency
-      );
-      offIntervals.push(result);
-      offState = { soc: result.socEnd, prevDGOn: result.dieselGen > 0 };
-    }
-    const offTotals = computeMonthTotals(offIntervals, offDays, stepH);
-    totals.pv_kWh += offTotals.pv_kWh;
-    totals.load_kWh += offTotals.load_kWh;
-    totals.grid_kWh += offTotals.grid_kWh;
-    totals.diesel_kWh += offTotals.diesel_kWh;
-    totals.dieselFuel_L += offTotals.dieselFuel_L;
-    totals.curtailment_kWh += offTotals.curtailment_kWh;
-    totals.bessCharge_kWh += offTotals.bessCharge_kWh;
-    totals.bessDischarge_kWh += offTotals.bessDischarge_kWh;
-    totals.unserved_kWh += offTotals.unserved_kWh;
-  }
-
-  return { month, days, intervals, totals };
+  return { month, days, intervals: normalIntervals, totals };
 }
 
 /** 单个 15 分钟时段调度 */
 function dispatchInterval(
   params: InputParams,
-  scenario: ScenarioConfig,
   prof: ProfileInterval,
   state: DispatchState,
   stepH: number,
   bessCapacity: number,
   pcsPower: number,
-  pvCapacity: number,
-  dgMinStable: number,
-  dgRatedPower: number,
-  dgEfficiency: number
+  pvCapacity: number
 ): DispatchInterval {
+  const dgMinStable = params.diesel.minStablePower_kW;
+  const dgRatedPower = params.diesel.ratedPower_kW;
+  const dgEfficiency = params.diesel.efficiency_kWhPerL;
+
   // 1. 光伏发电
   const pvGen = prof.pvPerUnit * pvCapacity * params.pv.deratingFactor;
 
@@ -175,54 +221,34 @@ function dispatchInterval(
     remainingLoad = netLoad - maxDischarge * params.bess.efficiencyDischarge;
   }
 
-  // 4. 柴油机决策
+  // 4. 柴油机决策（并网场景：仅停电窗口内的最后手段；电网恢复即停）
   let dieselGen = 0;
   let dieselFuel = 0;
   let dgStart = 0;
 
-  const dieselTriggered = state.soc <= params.bess.socDieselTrigger;
-  const dieselStop = state.soc >= params.bess.socDieselStop;
-
-  if (remainingLoad > 0) {
-    if (!state.prevDGOn && dieselTriggered && prof.gridAvailable) {
-      // 电网可用时，柴油触发但由电网承担
-      // 不启动柴油机
-    } else if (state.prevDGOn && dieselStop) {
-      // 柴油机关停
-      dieselGen = 0;
-    } else if (state.prevDGOn || (!prof.gridAvailable && remainingLoad > 0)) {
-      // 柴油机已运行 或 电网不可用
-      if (state.prevDGOn || prof.gridAvailable === false) {
-        dieselGen = Math.min(remainingLoad, dgRatedPower);
-        // 低于最低稳定功率则用最低稳定功率，多余给电池充电
-        if (dieselGen < dgMinStable && dieselGen > 0) {
-          // 简化：低于最低稳定则设为最低
-          const gap = dgMinStable - dieselGen;
-          dieselGen = dgMinStable;
-          // 多余功率可充电池
-          const socRoom = (params.bess.socMax - state.soc) * bessCapacity / stepH;
-          const extraCharge = Math.min(gap, socRoom, pcsPower - bessCharge);
-          bessCharge += extraCharge;
-        }
-        dieselFuel = dieselGen / dgEfficiency * stepH; // L
-        if (!state.prevDGOn && dieselGen > 0) {
-          dgStart = 1;
-        }
-        remainingLoad -= dieselGen;
-      }
+  if (remainingLoad > 0 && !prof.gridAvailable) {
+    // 电网不可用且储能已尽力 → 柴油机兜底
+    dieselGen = Math.min(remainingLoad, dgRatedPower);
+    // 低于最低稳定功率则按最低稳定功率运行，多余给电池充电
+    if (dieselGen < dgMinStable && dieselGen > 0) {
+      const gap = dgMinStable - dieselGen;
+      dieselGen = dgMinStable;
+      const socRoom = (params.bess.socMax - state.soc) * bessCapacity / stepH;
+      const extraCharge = Math.min(gap, socRoom, pcsPower - bessCharge);
+      bessCharge += Math.max(0, extraCharge);
     }
+    dieselFuel = dieselGen / dgEfficiency * stepH; // L
+    if (!state.prevDGOn && dieselGen > 0) {
+      dgStart = 1;
+    }
+    remainingLoad -= dieselGen;
   }
 
   // 5. 电网购电
   let gridImport = 0;
-  let excessDemand = 0;
 
   if (remainingLoad > 0 && prof.gridAvailable) {
     gridImport = remainingLoad;
-    // 超需判断
-    if (gridImport > params.grid.contractDemand_kW * (1 + params.grid.excessDemandTolerance)) {
-      excessDemand = gridImport - params.grid.contractDemand_kW;
-    }
   }
 
   // 6. 弃光/未供电
@@ -233,7 +259,8 @@ function dispatchInterval(
     // 光伏余量中无法充电也无法上网的部分
     curtailment = Math.max(0, pvExcess - bessCharge / params.bess.efficiencyCharge);
   }
-  if (remainingLoad > 0 && !prof.gridAvailable && dieselGen === 0) {
+  if (remainingLoad > 0 && !prof.gridAvailable) {
+    // 电网不可用且储能+油机无法覆盖的部分 → 未供电（E8：量纲为功率，汇总时×步长得电量、按时段计小时）
     unserved = remainingLoad;
   }
 
@@ -259,18 +286,17 @@ function dispatchInterval(
     unserved,
     socEnd,
     dgStart,
+    gridPrice: prof.gridPrice,
   };
 }
 
 // ─── 汇总计算 ───────────────────────────────────────────────
 
-function computeMonthTotals(
-  intervals: DispatchInterval[],
-  days: number,
-  stepH: number
-) {
+/** 汇总单日逐时段结果（E3：购电费用逐时段 × 该时段电价） */
+function sumDayIntervals(intervals: DispatchInterval[], stepH: number) {
   let pv = 0, load = 0, grid = 0, diesel_kWh = 0, dieselL = 0;
   let curtail = 0, bessC = 0, bessD = 0, unserved = 0;
+  let gridCost = 0, peakGrid = 0, unservedH = 0;
 
   for (const it of intervals) {
     pv += it.pvGen * stepH;
@@ -278,24 +304,30 @@ function computeMonthTotals(
     const loadKW = it.netLoad + it.pvGen;
     load += (loadKW > 0 ? loadKW : it.pvGen - it.pvExcess) * stepH;
     grid += it.gridImport * stepH;
+    gridCost += it.gridImport * stepH * it.gridPrice; // E3 分时计价
+    peakGrid = Math.max(peakGrid, it.gridImport);     // 需量费依据（仅电网侧）
     diesel_kWh += it.dieselGen * stepH;
     dieselL += it.dieselFuel;
     curtail += it.curtailment * stepH;
     bessC += it.bessCharge * stepH;
     bessD += it.bessDischarge * stepH;
     unserved += it.unserved * stepH;
+    if (it.unserved > 0) unservedH += stepH;          // E8 量纲：小时
   }
 
   return {
-    pv_kWh: pv * days,
-    load_kWh: load * days,
-    grid_kWh: grid * days,
-    diesel_kWh: diesel_kWh * days,
-    dieselFuel_L: dieselL * days,
-    curtailment_kWh: curtail * days,
-    bessCharge_kWh: bessC * days,
-    bessDischarge_kWh: bessD * days,
-    unserved_kWh: unserved * days,
+    pv_kWh: pv,
+    load_kWh: load,
+    grid_kWh: grid,
+    diesel_kWh: diesel_kWh,
+    dieselFuel_L: dieselL,
+    curtailment_kWh: curtail,
+    bessCharge_kWh: bessC,
+    bessDischarge_kWh: bessD,
+    unserved_kWh: unserved,
+    gridCost,
+    peakGrid_kW: peakGrid,
+    unservedHours: unservedH,
   };
 }
 
@@ -306,8 +338,9 @@ function computeAnnualSummary(
 ): EngineAnnualSummary {
   let pv = 0, load = 0, grid = 0, dieselL = 0, curtail = 0;
   let bessCycles = 0, peakDemand = 0, totalSoc = 0, socCount = 0;
+  let unservedHours = 0;
 
-  // 电网成本
+  // 电网成本（E3：直接累加月度分时计价结果）
   let gridCost = 0, dieselCost = 0, demandChargeCost = 0;
 
   for (const mr of monthlyResults) {
@@ -316,29 +349,25 @@ function computeAnnualSummary(
     grid += mr.totals.grid_kWh;
     dieselL += mr.totals.dieselFuel_L;
     curtail += mr.totals.curtailment_kWh;
+    unservedHours += mr.totals.unservedHours || 0;
 
     // BESS 循环次数（放电量 / 容量）
     bessCycles += mr.totals.bessDischarge_kWh / scenario.bessCapacity_kWh;
 
-    // 峰值需量
+    // 峰值需量（月度口径，三变体已在 monthPeakGrid_kW 中考虑）
+    peakDemand = Math.max(peakDemand, mr.totals.monthPeakGrid_kW || 0);
+
+    // 平均 SOC（取正常工作日变体的逐时段序列）
     for (const it of mr.intervals) {
-      peakDemand = Math.max(peakDemand, it.gridImport);
       totalSoc += it.socEnd;
       socCount++;
     }
 
-    // 电网成本 = 购电量 × 均价
-    // 简化：用平均电价（TOU 精确分时计价后续迭代）
-    const avgPrice = params.grid.tariffType === 'flat'
-      ? params.grid.flatPrice_perkWh
-      : (params.grid.offPeakPrice_perkWh * 0.7 + params.grid.peakPrice_perkWh * 0.3);
-
-    gridCost += mr.totals.grid_kWh * avgPrice;
+    gridCost += mr.totals.gridCost || 0;
     dieselCost += (mr.totals.dieselFuel_L || 0) * params.diesel.fuelPrice_perL;
+    // 需量费 = 合同需量费 + 超需惩罚（月度计）
+    demandChargeCost += monthlyDemandCharge(params, mr.totals.monthPeakGrid_kW || 0);
   }
-
-  // 需量费
-  demandChargeCost = params.grid.contractDemand_kW * params.grid.demandCharge_perKW * 12;
 
   return {
     pv_kWh: pv,
@@ -353,12 +382,17 @@ function computeAnnualSummary(
     dieselCost,
     demandChargeCost,
     totalEnergyCost: gridCost + dieselCost + demandChargeCost,
+    unservedHours,
   };
 }
 
 // ─── 基准场景计算 ───────────────────────────────────────────
 
-/** 计算纯电网基准场景（无光储） */
+/**
+ * 计算纯电网基准场景（无光储）
+ * 与场景侧同口径：停电工作日窗口内由柴油机备电（年停电时长 = Σ 停电日×时长），
+ * 购电按分时 TOU 计价，需量费按月度峰值计（含超需惩罚）。
+ */
 export function computeBaseline(
   params: InputParams,
   profile: ProfileData
@@ -368,46 +402,62 @@ export function computeBaseline(
   let peakDemand = 0;
   let totalGridCost = 0;
   let totalDieselCost = 0;
+  let totalDemandCharge = 0;
+
+  const stepH = params.timeStep;
+  const outageCfg = params.grid.outage;
+  const outageSlots = Math.max(1, Math.ceil((outageCfg?.eventMinutes || 30) / (stepH * 60)));
+  const outageStart = parseOutageWindow(outageCfg?.windowStart || '17:30', stepH);
 
   for (let m = 0; m < 12; m++) {
     const monthProfile = profile[m];
     if (!monthProfile || monthProfile.length === 0) continue;
-    const days = DAYS_PER_MONTH[m];
-    const stepH = params.timeStep;
+    // 基准与场景侧同口径：停运日全厂停产不计；停电工作日窗口内油机备电
+    const workDays = effectiveWorkDays(params, m + 1);
+    const outageDays = Math.min(outageCfg?.eventDaysPerMonth?.[m] || 0, workDays);
+    const normalDays = workDays - outageDays;
 
-    let monthGrid_kWh = 0;
-    let monthDiesel_L = 0;
-    let monthGridCost = 0;
-
+    // 正常日：全部电网供电（分时计价）
+    let dayGrid = 0, dayCost = 0, dayPeak = 0;
     for (const prof of monthProfile) {
-      const load = prof.load_kW;
+      dayGrid += prof.load_kW * stepH;
+      dayCost += prof.load_kW * stepH * prof.gridPrice;
+      dayPeak = Math.max(dayPeak, prof.load_kW);
+    }
 
-      if (prof.gridAvailable) {
-        monthGrid_kWh += load * stepH;
-        peakDemand = Math.max(peakDemand, load);
-        monthGridCost += load * stepH * prof.gridPrice;
-      } else {
-        // 电网不可用时用柴油机
-        const dieselPower = Math.min(load, params.diesel.ratedPower_kW);
-        const fuel = dieselPower / params.diesel.efficiency_kWhPerL * stepH;
-        monthDiesel_L += fuel;
-        peakDemand = Math.max(peakDemand, 0);
+    // 停电日：窗口内柴油机备电，其余时段电网
+    let oGrid = 0, oCost = 0, oDieselL = 0, oPeak = 0;
+    if (outageDays > 0) {
+      for (let t = 0; t < monthProfile.length; t++) {
+        const prof = monthProfile[t];
+        const inOutage = t >= outageStart && t < outageStart + outageSlots;
+        if (inOutage) {
+          const dieselPower = Math.min(prof.load_kW, params.diesel.ratedPower_kW);
+          oDieselL += dieselPower / params.diesel.efficiency_kWhPerL * stepH;
+        } else {
+          oGrid += prof.load_kW * stepH;
+          oCost += prof.load_kW * stepH * prof.gridPrice;
+          oPeak = Math.max(oPeak, prof.load_kW);
+        }
       }
     }
 
-    totalGrid_kWh += monthGrid_kWh * days;
-    totalDiesel_L += monthDiesel_L * days;
-    totalGridCost += monthGridCost * days;
-    totalDieselCost += monthDiesel_L * days * params.diesel.fuelPrice_perL;
+    const monthPeak = Math.max(dayPeak, oPeak);
+    peakDemand = Math.max(peakDemand, monthPeak);
+
+    totalGrid_kWh += dayGrid * normalDays + oGrid * outageDays;
+    totalGridCost += dayCost * normalDays + oCost * outageDays;
+    totalDiesel_L += oDieselL * outageDays;
+    totalDemandCharge += monthlyDemandCharge(params, monthPeak);
   }
 
-  const demandChargeCost = params.grid.contractDemand_kW * params.grid.demandCharge_perKW * 12;
+  totalDieselCost = totalDiesel_L * params.diesel.fuelPrice_perL;
 
   return {
     annualGridCost: totalGridCost,
     annualDieselCost: totalDieselCost,
-    annualDemandCharge: demandChargeCost,
-    annualTotalCost: totalGridCost + totalDieselCost + demandChargeCost,
+    annualDemandCharge: totalDemandCharge,
+    annualTotalCost: totalGridCost + totalDieselCost + totalDemandCharge,
     gridImport_kWh: totalGrid_kWh,
     dieselFuel_L: totalDiesel_L,
     peakDemand_kW: peakDemand,

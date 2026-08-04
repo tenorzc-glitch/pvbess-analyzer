@@ -38,9 +38,9 @@ export interface FinanceResult {
     annualPremium: number;
     totalPremium: number;
   };
-  /** 断电损失明细（仅 outageLoss.enabled 时存在） */
+  /** 断电损失明细（仅 outageLoss.enabled 时存在；E8 修复后以小时计） */
   outageLoss?: {
-    totalUnserved_kWh: number;
+    totalUnserved_hours: number;
     annualLoss: number;
   };
 }

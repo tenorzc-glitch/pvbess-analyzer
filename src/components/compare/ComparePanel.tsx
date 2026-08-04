@@ -77,28 +77,22 @@ export default function ComparePanel() {
 
   const tableData = [
     {
-      key: 'effCharge',
-      metric: `${t('params.chargeEfficiency')} (efficiencyCharge)`,
-      industry: formatPct(brands.industry_avg.efficiencyCharge),
-      hw: formatPct(brands.HW.efficiencyCharge),
+      key: 'rte',
+      metric: `${t('compare.rte')} (RTE)`,
+      industry: formatPct(brands.industry_avg.rte),
+      hw: formatPct(brands.HW.rte),
     },
     {
-      key: 'effDischarge',
-      metric: `${t('params.dischargeEfficiency')} (efficiencyDischarge)`,
-      industry: formatPct(brands.industry_avg.efficiencyDischarge),
-      hw: formatPct(brands.HW.efficiencyDischarge),
+      key: 'rteSplit',
+      metric: `${t('compare.rteSplit')} (√RTE)`,
+      industry: formatPct(Math.sqrt(brands.industry_avg.rte)),
+      hw: formatPct(Math.sqrt(brands.HW.rte)),
     },
     {
       key: 'costPerKWh',
-      metric: `${t('params.bessUnitCost')} (costPerKWh)`,
+      metric: `${t('compare.fullPackageCost')} (costPerKWh)`,
       industry: formatMoney(brands.industry_avg.costPerKWh),
       hw: formatMoney(brands.HW.costPerKWh),
-    },
-    {
-      key: 'pcsCostPerKW',
-      metric: `${t('params.pcsUnitCost')} (pcsCostPerKW)`,
-      industry: formatMoney(brands.industry_avg.pcsCostPerKW),
-      hw: formatMoney(brands.HW.pcsCostPerKW),
     },
     {
       key: 'opexRate',
@@ -108,7 +102,7 @@ export default function ComparePanel() {
     },
     {
       key: 'sohCurve',
-      metric: `${t('compare.soh')} (sohCurve, 10Y)`,
+      metric: `${t('compare.soh')} (sohCurve, 15Y)`,
       industry: brands.industry_avg.sohCurve.map((v) => v.toFixed(3)).join(' / '),
       hw: brands.HW.sohCurve.map((v) => v.toFixed(3)).join(' / '),
     },
@@ -138,7 +132,7 @@ export default function ComparePanel() {
     pushRow('revenue', t('finance.table.revenue'), industryFinance.annualRevenue, hwEstimate.annualRevenue, formatMoney);
     pushRow('npv', t('finance.table.npv'), industryFinance.npv, hwEstimate.npv, formatMoney);
     pushRow('irr', t('finance.table.irr'), industryFinance.irr, hwEstimate.irr, (v) => `${(v * 100).toFixed(1)}%`);
-    pushRow('payback', t('finance.table.paybackStatic'), industryFinance.paybackStatic, hwEstimate.paybackStatic, (v) => `${v.toFixed(2)} 年`);
+    pushRow('payback', t('finance.table.paybackStatic'), industryFinance.paybackStatic, hwEstimate.paybackStatic, (v) => `${v.toFixed(2)} ${t('common.years')}`);
     return rows;
   }, [industryFinance, hwEstimate]);
 
@@ -181,7 +175,7 @@ export default function ComparePanel() {
             {t('compare.hw')} —
           </Typography.Text>
         ) : !currentScenario ? (
-          <Typography.Text type="warning">未选择方案，无法计算 CAPEX 对比</Typography.Text>
+          <Typography.Text type="warning">{t('compare.noScenario')}</Typography.Text>
         ) : !industryFinance ? (
           <Typography.Text type="warning">{t('finance.noData')}</Typography.Text>
         ) : (
@@ -215,7 +209,7 @@ export default function ComparePanel() {
                 <Statistic
                   title={`${t('finance.payback')} Δ`}
                   value={(hwEstimate!.paybackStatic - industryFinance.paybackStatic).toFixed(2)}
-                  suffix="年"
+                  suffix={t('common.years')}
                   prefix={hwEstimate!.paybackStatic - industryFinance.paybackStatic >= 0 ? '+' : ''}
                 />
               </Col>

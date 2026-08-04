@@ -19,7 +19,12 @@
     "passwordMismatch": "Passwords do not match",
     "offlineNotSupported": "Registration not available offline. Use any email and password to login.",
     "offlineTip": "Click \"Login\" directly to enter without filling in anything",
-    "adminTip": "Admin: enter activation code"
+    "adminTip": "Admin: enter activation code",
+    "offlineOptional": " (optional offline)",
+    "passwordHint": "8-32 chars; must contain letters and digits",
+    "registerOffline": "Offline mode: no registration needed, just log in",
+    "registerSuccessEmail": "Registration successful! Check your inbox for the activation link (it may land in spam).",
+    "registerSuccess": "Registration successful! Logged in automatically."
   },
   "nav": {
     "projects": "Projects",
@@ -48,7 +53,9 @@
     "notFound": "Project not found",
     "back": "Back",
     "createdAt": "Created on",
-    "presetApplied": "Country industry presets applied (editable)"
+    "presetApplied": "Country industry presets applied (editable)",
+    "untitled": "Untitled Project",
+    "notLoggedIn": "Not logged in"
   },
   "country": {
     "brazil": "Brazil",
@@ -88,15 +95,11 @@
     "efficiency": "Efficiency",
     "dieselPrice": "Diesel Price",
     "capex": "CAPEX",
-    "pvUnitCost": "PV Unit Cost",
-    "bessUnitCost": "BESS Unit Cost",
-    "pcsUnitCost": "PCS Unit Cost",
-    "installPct": "Installation %",
-    "pvFixedCost": "PV Fixed Cost",
-    "bessFixedCost": "BESS Fixed Cost",
-    "remoteTransport": "Remote Transport",
+    "capexFullPackageTip": "Full-package pricing: unit costs include cabling, installation & transport; PCS is included in the BESS unit price",
+    "pvUnitCost": "PV Full-Package Cost",
+    "bessUnitCost": "BESS Full-Package Cost",
     "financial": "Financial",
-    "projectLife": "Project Life",
+    "projectLife": "Project Life (yr)",
     "discountRate": "Discount Rate",
     "priceGrowth": "Price Growth",
     "opexGrowth": "OPEX Growth",
@@ -104,6 +107,43 @@
     "rainySchedule": "Rainy Schedule",
     "currency": "Currency",
     "dieselMaintenance": "Diesel Maintenance",
+    "taxRate": "Tax Rate (simplified)",
+    "taxRateNote": "Simplified assumption: tax on net cash flow; depreciation/credits not modeled",
+    "currencies": {
+      "BRL": "Brazilian Real",
+      "USD": "US Dollar",
+      "EUR": "Euro",
+      "CNY": "Chinese Yuan",
+      "MXN": "Mexican Peso",
+      "COP": "Colombian Peso",
+      "CLP": "Chilean Peso",
+      "PEN": "Peruvian Sol"
+    },
+    "opexPanel": {
+      "title": "O&M Costs (OPEX)",
+      "ratesGroup": "Fixed O&M Rates",
+      "pvRate": "PV O&M Rate",
+      "bessRate": "BESS O&M Rate",
+      "balancingGroup": "Manual On-site Balancing",
+      "visitsY1to3": "Balancing Visits (Years 1-3)",
+      "visitsY4plus": "Balancing Visits (Year 4+)",
+      "crew": "Crew per Visit",
+      "hoursPerCabinet": "Hours per Cabinet",
+      "cabinetEnergyKwh": "Cabinet Capacity",
+      "laborRate": "Labor Rate",
+      "travelCost": "Travel per Visit",
+      "equipmentCost": "Balancing Equipment per Visit",
+      "coolantGroup": "Coolant Replacement",
+      "coolantInterval": "Replacement Interval",
+      "coolantCost": "Cost per Replacement"
+    },
+    "outagePanel": {
+      "title": "Grid Outage Model",
+      "eventDaysPerMonth": "Outage Workdays / Month",
+      "eventMinutes": "Outage Duration",
+      "windowStart": "Outage Window Start",
+      "annualHoursHint": "Equivalent Annual Outage"
+    },
     "workDaysPanel": {
       "title": "Effective Days & Rainy Season",
       "effectiveDays": "Effective Days / Year",
@@ -111,7 +151,7 @@
       "rainyMonths": "Rainy Months",
       "rainyOutage": "Rainy Outage Days",
       "computed": "Actual Effective Days",
-      "tip": "On PV+BESS outage days (rainy + maintenance), load is served by grid/diesel. Monthly maintenance and rainy outage days determine the actual effective days."
+      "tip": "On PV+BESS outage days (rainy + maintenance) the whole plant stops — load is zero. Monthly maintenance and rainy outage days determine the actual effective days."
     },
     "outageLoss": {
       "title": "Outage Loss",
@@ -131,14 +171,20 @@
     "title": "Sizing Optimization",
     "pvCapacity": "PV Capacity (kWp)",
     "bessRange": "BESS Range (kWh)",
+    "bessMin": "BESS Min (kWh)",
+    "bessMax": "BESS Max (kWh)",
+    "paybackShort": "Payback",
     "step": "Step (kWh)",
     "run": "Run Optimization",
     "bestPBP": "Best Payback",
     "bestNPV": "Best NPV",
-    "specialPCS": "PCS=3×Load Scenario",
+    "shockOption": "Shock-Load Tier (power-driven)",
+    "normalPeakNote": "Profile peak {{peak}} kW; normal load peak {{normal}} kW + {{mult}}× pump rated {{pump}} kW; power:energy = 1:2; excluded from best-of selection",
     "running": "Scanning optimization...",
     "detail": "Scan Results Detail",
     "empty": "No results. Click \"Run Optimization\".",
+    "bessCapacityAxis": "BESS Capacity (kWh)",
+    "paybackAxis": "Payback (yr)",
     "table": {
       "bess": "BESS kWh",
       "pcs": "PCS kW",
@@ -218,6 +264,10 @@
     "bcRatio": "B/C Ratio",
     "npvChart": "NPV Comparison",
     "cashflowChart": "Cumulative DCF",
+    "chart": {
+      "npv": "NPV",
+      "cumulativeCashflow": "Cumulative Cash Flow"
+    },
     "table": {
       "capex": "CAPEX",
       "revenue": "Year 1 Revenue",
@@ -250,7 +300,11 @@
     "sameCapacity": "Same Capacity Comparison",
     "efficiency": "Charge/Discharge Efficiency",
     "soh": "SOH Curve",
-    "cost": "Battery Cost"
+    "cost": "Battery Cost",
+    "rte": "Round-Trip Efficiency",
+    "rteSplit": "Charge/Discharge Eff.",
+    "fullPackageCost": "BESS Full-Package Cost (incl. PCS/install)",
+    "noScenario": "No scenario selected; cannot compute CAPEX comparison"
   },
   "report": {
     "title": "Investment Report",
@@ -323,6 +377,103 @@
     "notFound": "404 - Page Not Found",
     "best": "Best",
     "metric": "Metric",
-    "offlineUser": "Offline User"
+    "offlineUser": "Offline User",
+    "perMonth": "mo",
+    "years": "yr",
+    "loadFailed": "Load failed",
+    "simFailed": "Simulation failed",
+    "demoProjectName": "Brazil Coffee Farm 500kWp"
+  },
+  "scenario": {
+    "names": {
+      "template": "Scheme {{n}} ({{bess}}kWh)",
+      "shock": "Scheme {{n}} ({{bess}}kWh Shock)"
+    }
+  },
+  "excel": {
+    "sheets": {
+      "params": "Parameters",
+      "scenarios": "Scenarios",
+      "finance": "Financial Metrics",
+      "cashflow": "Cash Flow",
+      "hwCompare": "HW Comparison"
+    },
+    "headers": {
+      "key": "Key",
+      "label": "Label",
+      "value": "Value",
+      "param": "Parameter",
+      "metric": "Metric",
+      "industry": "Industry Avg",
+      "deltaHW": "Δ (HW − Ind.)",
+      "unit": "Unit/Note"
+    },
+    "rows": {
+      "pvCapacity": "PV Capacity (kWp)",
+      "derating": "PV Derating Factor",
+      "pcsRate": "BESS PCS Rate (C)",
+      "chargeEff": "BESS Charge Efficiency",
+      "dischargeEff": "BESS Discharge Efficiency",
+      "socMax": "BESS Max SOC",
+      "socMin": "BESS Min SOC",
+      "socInitial": "BESS Initial SOC",
+      "dieselRated": "Diesel Genset Rated Power (kW)",
+      "dieselPrice": "Diesel Price (curr/L)",
+      "contractDemand": "Contract Demand (kW)",
+      "demandCharge": "Demand Charge (curr/kW·mo)",
+      "excessRate": "Excess Demand Rate (curr/kW·mo)",
+      "tariffType": "Tariff Type (flat/tou)",
+      "flatPrice": "Flat Price (curr/kWh)",
+      "peakPrice": "Peak Price (curr/kWh)",
+      "offPeakPrice": "Off-peak Price (curr/kWh)",
+      "pvCost": "PV Full-package Cost (curr/kW)",
+      "bessCost": "BESS Full-package Cost (curr/kWh)",
+      "projectLife": "Project Life (yr)",
+      "discountRate": "Discount Rate",
+      "priceGrowth": "Price Growth",
+      "opexGrowth": "OPEX Growth",
+      "taxRate": "Tax Rate",
+      "pvOpexRate": "PV O&M Rate",
+      "bessOpexRate": "BESS O&M Rate",
+      "currencyCode": "Currency Code",
+      "currencySymbol": "Currency Symbol",
+      "scenario": "Scheme",
+      "capex": "CAPEX",
+      "revenue": "Year 1 Revenue",
+      "npv": "NPV",
+      "irr": "IRR",
+      "paybackStatic": "Static Payback (yr)",
+      "paybackDynamic": "Dynamic Payback (yr)",
+      "lcoe": "LCOE",
+      "bcRatio": "B/C Ratio",
+      "greenEnergy": "Annual Green Energy (kWh)",
+      "greenPremium": "Annual Green Premium",
+      "greenTotal": "Lifecycle Premium",
+      "unservedHours": "Annual Unserved Hours (h)",
+      "outageLoss": "Annual Outage Loss",
+      "socUpper": "BESS SOC Upper",
+      "socLower": "BESS SOC Lower",
+      "rte": "Round-trip Efficiency (RTE)",
+      "rteSplit": "Charge/Discharge Eff. (√RTE)",
+      "opexRate": "OPEX Rate"
+    },
+    "cashflow": {
+      "year": "Year",
+      "soh": "SOH",
+      "pvGen": "PV Generation (kWh)",
+      "gridSaving": "Grid Saving",
+      "dieselSaving": "Diesel Saving",
+      "demandSaving": "Demand Saving",
+      "totalRevenue": "Total Revenue",
+      "opex": "OPEX",
+      "netCF": "Net Cashflow",
+      "discCF": "Discounted Cashflow",
+      "cumDCF": "Cumulative DCF"
+    },
+    "errors": {
+      "missingParamsSheet": "Parameters worksheet not found (cell A1 should be 'key')"
+    },
+    "hwNote": "Note: HW column is a simplified estimate at the same capacity (efficiency/OPEX delta adjusted), not a re-simulation.",
+    "schemeName": "Scheme {{n}}"
   }
 }

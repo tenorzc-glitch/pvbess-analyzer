@@ -6,7 +6,7 @@ import { DEFAULT_PARAMS } from '../../store/useParamsStore';
  * 国家 + 行业预设参数
  *
  * 巴西（咖啡种植/加工）：取自用户实测数据（Brazil_Coffee_Farm 15min 负荷 +
- * 屋顶辐照曲线），电价为巴西工商业水平（峰 0.95 / 谷 0.65 BRL/kWh）。
+ * 屋顶辐照曲线），电价为 Cemig-D 白色分时（谷 0.748 / 峰 1.734 BRL/kWh）。
  * 其他国家：公开工商业均价近似值，均可在录入界面直接修改。
  */
 export interface CountryPreset {
@@ -28,17 +28,17 @@ export const COUNTRY_PRESETS: Partial<Record<CountryCode, CountryPreset>> = {
   brazil: {
     currency: { code: 'BRL', symbol: 'R$', locale: 'pt-BR' },
     grid: {
-      tariffType: 'flat',
-      flatPrice_perkWh: 0.65,
-      peakPrice_perkWh: 0.95,
-      offPeakPrice_perkWh: 0.65,
+      tariffType: 'tou',
+      flatPrice_perkWh: 0.748,
+      peakPrice_perkWh: 1.734,
+      offPeakPrice_perkWh: 0.748,
       demandCharge_perKW: 45,
       excessDemandRate: 90,
     },
-    diesel: { fuelPrice_perL: 6.0 },
+    diesel: { fuelPrice_perL: 6.82 },
     note: {
-      zh: '咖啡种植/加工实测负荷曲线 + 屋顶辐照（15min），工商业电价',
-      en: 'Real coffee farm load & rooftop irradiation profile (15-min), C&I tariff',
+      zh: '咖啡种植/加工实测负荷曲线 + 屋顶辐照（15min），Cemig-D 白色分时电价',
+      en: 'Real coffee farm load & rooftop irradiation profile (15-min), Cemig-D white TOU tariff',
     },
   },
   mexico: {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import i18n from '../i18n';
 
 export interface AuthUser {
   id: string;
@@ -135,15 +136,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = useCallback(async (email: string, password: string) => {
     if (!isSupabaseConfigured() || !supabase) {
-      return { error: '当前离线模式，无需注册，直接登录即可' };
+      return { error: i18n.t('auth.registerOffline') };
     }
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
     // 如果邮箱确认已关闭，用户可直接登录；否则提示查收邮件
     if (data.user && !data.session) {
-      return { info: '注册成功！请查收激活邮件并点击激活链接（可能进入垃圾箱）。' };
+      return { info: i18n.t('auth.registerSuccessEmail') };
     }
-    return { info: '注册成功！已自动登录。' };
+    return { info: i18n.t('auth.registerSuccess') };
   }, []);
 
   const signOut = useCallback(async () => {

@@ -19,7 +19,12 @@
     "passwordMismatch": "两次密码不一致",
     "offlineNotSupported": "离线模式不支持注册，请使用任意邮箱和密码登录",
     "offlineTip": "直接点击\"登录\"无需填写任何信息即可进入",
-    "adminTip": "管理员需输入激活码"
+    "adminTip": "管理员需输入激活码",
+    "offlineOptional": "（离线可选）",
+    "passwordHint": "8-32位，需包含字母和数字",
+    "registerOffline": "当前离线模式，无需注册，直接登录即可",
+    "registerSuccessEmail": "注册成功！请查收激活邮件并点击激活链接（可能进入垃圾箱）。",
+    "registerSuccess": "注册成功！已自动登录。"
   },
   "nav": {
     "projects": "项目列表",
@@ -48,7 +53,9 @@
     "notFound": "项目未找到",
     "back": "返回",
     "createdAt": "创建于",
-    "presetApplied": "已应用该国行业预设值（可直接修改）"
+    "presetApplied": "已应用该国行业预设值（可直接修改）",
+    "untitled": "未命名项目",
+    "notLoggedIn": "未登录"
   },
   "country": {
     "brazil": "巴西 Brazil",
@@ -88,15 +95,11 @@
     "efficiency": "发电效率",
     "dieselPrice": "柴油价格",
     "capex": "CAPEX 投资成本",
-    "pvUnitCost": "光伏单价",
-    "bessUnitCost": "电池单价",
-    "pcsUnitCost": "PCS 单价",
-    "installPct": "安装比例",
-    "pvFixedCost": "光伏固定成本",
-    "bessFixedCost": "储能固定成本",
-    "remoteTransport": "偏远运输附加",
+    "capexFullPackageTip": "两项全包口径：单价已含线缆、安装与运输；PCS 含于储能单价",
+    "pvUnitCost": "光伏全包单价",
+    "bessUnitCost": "储能全包单价",
     "financial": "财务假设",
-    "projectLife": "项目寿命",
+    "projectLife": "项目寿命 (年)",
     "discountRate": "折现率",
     "priceGrowth": "价格年增长",
     "opexGrowth": "OPEX 年增长",
@@ -104,6 +107,43 @@
     "rainySchedule": "雨季排程",
     "currency": "货币",
     "dieselMaintenance": "油机维护成本",
+    "taxRate": "税率（简化）",
+    "taxRateNote": "简化假定：对净现金流课税，未含折旧/抵扣等税务细节",
+    "currencies": {
+      "BRL": "巴西雷亚尔",
+      "USD": "美元",
+      "EUR": "欧元",
+      "CNY": "人民币",
+      "MXN": "墨西哥比索",
+      "COP": "哥伦比亚比索",
+      "CLP": "智利比索",
+      "PEN": "秘鲁索尔"
+    },
+    "opexPanel": {
+      "title": "运维成本（OPEX）",
+      "ratesGroup": "固定运维费率",
+      "pvRate": "光伏运维费率",
+      "bessRate": "储能运维费率",
+      "balancingGroup": "人工上站均衡",
+      "visitsY1to3": "均衡次数（第 1-3 年）",
+      "visitsY4plus": "均衡次数（第 4 年起）",
+      "crew": "每次上站人数",
+      "hoursPerCabinet": "每柜工时",
+      "cabinetEnergyKwh": "单柜容量",
+      "laborRate": "人工单价",
+      "travelCost": "单次差旅",
+      "equipmentCost": "单次均衡设备",
+      "coolantGroup": "冷却液更换",
+      "coolantInterval": "更换周期",
+      "coolantCost": "单次更换成本"
+    },
+    "outagePanel": {
+      "title": "电网停电模型",
+      "eventDaysPerMonth": "每月停电工作日数",
+      "eventMinutes": "单次停电时长",
+      "windowStart": "停电窗口起始时刻",
+      "annualHoursHint": "折合年停电时长"
+    },
     "workDaysPanel": {
       "title": "有效工作日与雨季",
       "effectiveDays": "年有效工作天数",
@@ -111,7 +151,7 @@
       "rainyMonths": "雨季月份",
       "rainyOutage": "雨季停运天数",
       "computed": "实际生效天数",
-      "tip": "光储系统停运日（雨季+检修）内负荷由电网/油机承担；各月检修与雨季停运天数合计决定实际生效天数"
+      "tip": "光储系统停运日（雨季+检修）全厂停产，负荷归零不计；各月检修与雨季停运天数合计决定实际生效天数"
     },
     "outageLoss": {
       "title": "断电损失",
@@ -131,14 +171,20 @@
     "title": "定容寻优",
     "pvCapacity": "光伏容量 (kWp)",
     "bessRange": "储能范围 (kWh)",
+    "bessMin": "储能范围-起始 (kWh)",
+    "bessMax": "储能范围-终止 (kWh)",
+    "paybackShort": "回收期",
     "step": "步长 (kWh)",
     "run": "开始寻优",
     "bestPBP": "最优回收期",
     "bestNPV": "最优 NPV",
-    "specialPCS": "PCS=3×负载档位",
+    "shockOption": "冲击负载档（功率逻辑）",
+    "normalPeakNote": "profile 最大负荷 {{peak}} kW，普通负载峰值 {{normal}} kW + {{mult}}×泵额定 {{pump}} kW；功率:能量 = 1:2；该档不参与最优评选",
     "running": "正在扫描优化...",
     "detail": "扫描结果明细",
     "empty": "暂无寻优结果，请点击\"开始寻优\"",
+    "bessCapacityAxis": "储能容量 (kWh)",
+    "paybackAxis": "回收期 (年)",
     "table": {
       "bess": "储能 kWh",
       "pcs": "PCS kW",
@@ -218,6 +264,10 @@
     "bcRatio": "B/C Ratio",
     "npvChart": "NPV 对比",
     "cashflowChart": "累计折现现金流",
+    "chart": {
+      "npv": "净现值",
+      "cumulativeCashflow": "累计现金流"
+    },
     "table": {
       "capex": "CAPEX",
       "revenue": "首年收益",
@@ -250,7 +300,11 @@
     "sameCapacity": "同容量对比",
     "efficiency": "充放电效率",
     "soh": "SOH 曲线",
-    "cost": "电池成本"
+    "cost": "电池成本",
+    "rte": "储能综合效率",
+    "rteSplit": "充/放效率",
+    "fullPackageCost": "储能全包单价（含 PCS/安装）",
+    "noScenario": "未选择方案，无法计算 CAPEX 对比"
   },
   "report": {
     "title": "投资报告",
@@ -323,6 +377,103 @@
     "notFound": "404 - 页面未找到",
     "best": "最优",
     "metric": "指标",
-    "offlineUser": "离线用户"
+    "offlineUser": "离线用户",
+    "perMonth": "月",
+    "years": "年",
+    "loadFailed": "加载失败",
+    "simFailed": "仿真计算失败",
+    "demoProjectName": "巴西咖啡农场 500kWp"
+  },
+  "scenario": {
+    "names": {
+      "template": "方案{{n}} ({{bess}}kWh)",
+      "shock": "方案{{n}} ({{bess}}kWh 冲击档)"
+    }
+  },
+  "excel": {
+    "sheets": {
+      "params": "参数",
+      "scenarios": "方案",
+      "finance": "财务指标",
+      "cashflow": "现金流",
+      "hwCompare": "HW 对比"
+    },
+    "headers": {
+      "key": "参数键",
+      "label": "说明",
+      "value": "值",
+      "param": "参数",
+      "metric": "指标",
+      "industry": "行业平均",
+      "deltaHW": "Δ (HW − 行业)",
+      "unit": "单位/说明"
+    },
+    "rows": {
+      "pvCapacity": "PV 容量 (kWp)",
+      "derating": "PV 综合衰减系数",
+      "pcsRate": "BESS PCS 倍率 (C)",
+      "chargeEff": "BESS 充电效率",
+      "dischargeEff": "BESS 放电效率",
+      "socMax": "BESS 最大 SOC",
+      "socMin": "BESS 最低 SOC",
+      "socInitial": "BESS 初始 SOC",
+      "dieselRated": "柴油发电机额定功率 (kW)",
+      "dieselPrice": "柴油价格 (货币/L)",
+      "contractDemand": "合同需量 (kW)",
+      "demandCharge": "需量电费 (货币/kW·月)",
+      "excessRate": "超需惩罚费率 (货币/kW·月)",
+      "tariffType": "电价类型 (flat/tou)",
+      "flatPrice": "平电价 (货币/kWh)",
+      "peakPrice": "峰电价 (货币/kWh)",
+      "offPeakPrice": "谷电价 (货币/kWh)",
+      "pvCost": "PV 全包单价 (货币/kW)",
+      "bessCost": "BESS 全包单价 (货币/kWh)",
+      "projectLife": "项目寿命 (年)",
+      "discountRate": "折现率",
+      "priceGrowth": "电价年增长率",
+      "opexGrowth": "OPEX 年增长率",
+      "taxRate": "税率",
+      "pvOpexRate": "光伏运维费率",
+      "bessOpexRate": "储能运维费率",
+      "currencyCode": "货币代码",
+      "currencySymbol": "货币符号",
+      "scenario": "方案",
+      "capex": "CAPEX",
+      "revenue": "首年收益",
+      "npv": "NPV",
+      "irr": "IRR",
+      "paybackStatic": "静态回收期 (年)",
+      "paybackDynamic": "动态回收期 (年)",
+      "lcoe": "LCOE",
+      "bcRatio": "B/C Ratio",
+      "greenEnergy": "年绿电消纳量 (kWh)",
+      "greenPremium": "年绿电溢价收益",
+      "greenTotal": "全生命周期溢价",
+      "unservedHours": "年未供电时长 (h)",
+      "outageLoss": "年断电损失",
+      "socUpper": "BESS SOC 上限",
+      "socLower": "BESS SOC 下限",
+      "rte": "储能综合效率 (RTE)",
+      "rteSplit": "充/放效率 (√RTE)",
+      "opexRate": "OPEX 比率"
+    },
+    "cashflow": {
+      "year": "年",
+      "soh": "SOH",
+      "pvGen": "光伏发电 (kWh)",
+      "gridSaving": "电网节省",
+      "dieselSaving": "柴油节省",
+      "demandSaving": "需量节省",
+      "totalRevenue": "总收益",
+      "opex": "OPEX",
+      "netCF": "净现金流",
+      "discCF": "折现现金流",
+      "cumDCF": "累计 DCF"
+    },
+    "errors": {
+      "missingParamsSheet": "未找到参数工作表（A1 单元格应为 key）"
+    },
+    "hwNote": "注：HW 列为同容量下的简化估算（效率/OPEX 差异调整），非重新仿真。",
+    "schemeName": "方案 {{n}}"
   }
 }

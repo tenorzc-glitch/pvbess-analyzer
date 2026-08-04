@@ -1,30 +1,38 @@
 import ExcelJS from 'exceljs';
-import { InputParams } from '../types';
+import { InputParams, ScenarioConfig } from '../types';
+import i18n from '../i18n';
 
-/** 参数 sheet 行定义：[键, 中文标签] */
-const PARAM_ROWS: Array<[string, string]> = [
-  ['pv.capacity_kWp', 'PV 容量 (kWp)'],
-  ['pv.deratingFactor', 'PV 综合衰减系数'],
-  ['pv.annualDegradation', 'PV 年衰减率'],
-  ['bess.cRate', 'BESS PCS 倍率 (C)'],
-  ['bess.efficiencyCharge', 'BESS 充电效率'],
-  ['bess.efficiencyDischarge', 'BESS 放电效率'],
-  ['bess.socMax', 'BESS 最大 SOC'],
-  ['bess.socMin', 'BESS 最低 SOC'],
-  ['bess.socInitial', 'BESS 初始 SOC'],
-  ['diesel.ratedPower_kW', '柴油发电机额定功率 (kW)'],
-  ['diesel.fuelPrice_perL', '柴油价格 (货币/L)'],
-  ['grid.contractDemand_kW', '合同需量 (kW)'],
-  ['grid.tariffType', '电价类型 (flat/tou)'],
-  ['grid.flatPrice_perkWh', '平电价 (货币/kWh)'],
-  ['grid.peakPrice_perkWh', '峰电价 (货币/kWh)'],
-  ['grid.offPeakPrice_perkWh', '谷电价 (货币/kWh)'],
-  ['capex.pvCost_perkW', 'PV 单位成本 (货币/kW)'],
-  ['capex.bessCost_perkWh', 'BESS 单位成本 (货币/kWh)'],
-  ['capex.pcsCost_perkW', 'PCS 单位成本 (货币/kW)'],
-  ['financial.projectLife', '项目寿命 (年)'],
-  ['financial.discountRate', '折现率'],
-  ['financial.priceGrowth', '电价年增长率'],
+/**
+ * 参数 sheet 行定义：dotted key + 标签 i18n key + 单位/说明（语言无关）
+ * A 列 = 参数 key（隐藏列，A1 恒为 'key'，是导入解析的唯一依据 → 语言无关）
+ */
+const PARAM_ROWS: Array<{ key: string; labelKey: string; unit?: string }> = [
+  { key: 'pv.capacity_kWp', labelKey: 'excel.rows.pvCapacity', unit: 'kWp' },
+  { key: 'pv.deratingFactor', labelKey: 'excel.rows.derating' },
+  { key: 'bess.cRate', labelKey: 'excel.rows.pcsRate', unit: 'C' },
+  { key: 'bess.efficiencyCharge', labelKey: 'excel.rows.chargeEff' },
+  { key: 'bess.efficiencyDischarge', labelKey: 'excel.rows.dischargeEff' },
+  { key: 'bess.socMax', labelKey: 'excel.rows.socMax' },
+  { key: 'bess.socMin', labelKey: 'excel.rows.socMin' },
+  { key: 'bess.socInitial', labelKey: 'excel.rows.socInitial' },
+  { key: 'diesel.ratedPower_kW', labelKey: 'excel.rows.dieselRated', unit: 'kW' },
+  { key: 'diesel.fuelPrice_perL', labelKey: 'excel.rows.dieselPrice', unit: 'curr/L' },
+  { key: 'grid.contractDemand_kW', labelKey: 'excel.rows.contractDemand', unit: 'kW' },
+  { key: 'grid.demandCharge_perKW', labelKey: 'excel.rows.demandCharge', unit: 'curr/kW·mo' },
+  { key: 'grid.excessDemandRate', labelKey: 'excel.rows.excessRate', unit: 'curr/kW·mo' },
+  { key: 'grid.tariffType', labelKey: 'excel.rows.tariffType', unit: 'flat | tou' },
+  { key: 'grid.flatPrice_perkWh', labelKey: 'excel.rows.flatPrice', unit: 'curr/kWh' },
+  { key: 'grid.peakPrice_perkWh', labelKey: 'excel.rows.peakPrice', unit: 'curr/kWh' },
+  { key: 'grid.offPeakPrice_perkWh', labelKey: 'excel.rows.offPeakPrice', unit: 'curr/kWh' },
+  { key: 'capex.pvCost_perkW', labelKey: 'excel.rows.pvCost', unit: 'curr/kW' },
+  { key: 'capex.bessCost_perkWh', labelKey: 'excel.rows.bessCost', unit: 'curr/kWh' },
+  { key: 'opex.pvFixedOpexRate', labelKey: 'excel.rows.pvOpexRate' },
+  { key: 'opex.bessFixedOpexRate', labelKey: 'excel.rows.bessOpexRate' },
+  { key: 'financial.projectLife', labelKey: 'excel.rows.projectLife', unit: 'yr' },
+  { key: 'financial.discountRate', labelKey: 'excel.rows.discountRate' },
+  { key: 'financial.priceGrowth', labelKey: 'excel.rows.priceGrowth' },
+  { key: 'financial.opexGrowth', labelKey: 'excel.rows.opexGrowth' },
+  { key: 'financial.taxRate', labelKey: 'excel.rows.taxRate' },
 ];
 
 /** 按 dotted path 取值 */
@@ -43,26 +51,36 @@ function setPathValue(obj: any, path: string, value: any): void {
   cur[keys[keys.length - 1]] = value;
 }
 
-/** 生成并下载 Excel 模板 */
-export async function downloadExcelTemplate(params: InputParams): Promise<void> {
+/** 构建模板工作簿（标签按当前语言生成；A 列 key 隐藏，导入时语言无关） */
+export async function buildTemplateWorkbook(
+  params: InputParams,
+  scenarios?: ScenarioConfig[]
+): Promise<ExcelJS.Workbook> {
+  const t = i18n.t.bind(i18n);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'PV-BESS Analyzer';
   workbook.created = new Date();
 
-  // Sheet 1: 参数
-  const paramSheet = workbook.addWorksheet('参数');
+  // Sheet 1: 参数（A=key 隐藏列为导入唯一依据）
+  const paramSheet = workbook.addWorksheet(t('excel.sheets.params'));
   paramSheet.columns = [
-    { header: '参数键', key: 'key', width: 32 },
-    { header: '说明', key: 'label', width: 36 },
-    { header: '值', key: 'value', width: 20 },
+    { header: 'key', key: 'key', width: 32, hidden: true },
+    { header: t('excel.headers.label'), key: 'label', width: 36 },
+    { header: t('excel.headers.value'), key: 'value', width: 20 },
+    { header: t('excel.headers.unit'), key: 'unit', width: 16 },
   ];
   paramSheet.getRow(1).font = { bold: true };
-  for (const [key, label] of PARAM_ROWS) {
-    paramSheet.addRow({ key, label, value: getPathValue(params, key) });
+  for (const row of PARAM_ROWS) {
+    paramSheet.addRow({
+      key: row.key,
+      label: t(row.labelKey),
+      value: getPathValue(params, row.key),
+      unit: row.unit ?? '',
+    });
   }
 
-  // Sheet 2: 方案
-  const scenarioSheet = workbook.addWorksheet('方案');
+  // Sheet 2: 方案（预填当前 6 档真实值，指令⑧：模板自带合理数据）
+  const scenarioSheet = workbook.addWorksheet(t('excel.sheets.scenarios'));
   scenarioSheet.columns = [
     { header: 'id', key: 'id', width: 8 },
     { header: 'name', key: 'name', width: 24 },
@@ -71,16 +89,31 @@ export async function downloadExcelTemplate(params: InputParams): Promise<void> 
     { header: 'pcsPower_kW', key: 'pcsPower_kW', width: 16 },
   ];
   scenarioSheet.getRow(1).font = { bold: true };
-  for (let i = 1; i <= 5; i++) {
+  const pvKwp = getPathValue(params, 'pv.capacity_kWp');
+  const tiers = scenarios && scenarios.length > 0
+    ? scenarios
+    : [1, 2, 3, 4, 5, 6].map((i) => ({
+        id: i, name: '', pvCapacity_kWp: pvKwp, bessCapacity_kWh: 0, pcsPower_kW: 0,
+      }));
+  for (const s of tiers) {
     scenarioSheet.addRow({
-      id: i,
-      name: `方案 ${i}`,
-      pvCapacity_kWp: getPathValue(params, 'pv.capacity_kWp'),
-      bessCapacity_kWh: 0,
-      pcsPower_kW: 0,
+      id: s.id,
+      name: s.name || t('excel.schemeName', { n: s.id }),
+      pvCapacity_kWp: s.pvCapacity_kWp ?? pvKwp,
+      bessCapacity_kWh: s.bessCapacity_kWh,
+      pcsPower_kW: s.pcsPower_kW,
     });
   }
 
+  return workbook;
+}
+
+/** 生成并下载 Excel 模板 */
+export async function downloadExcelTemplate(
+  params: InputParams,
+  scenarios?: ScenarioConfig[]
+): Promise<void> {
+  const workbook = await buildTemplateWorkbook(params, scenarios);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -95,19 +128,28 @@ export async function downloadExcelTemplate(params: InputParams): Promise<void> 
   URL.revokeObjectURL(url);
 }
 
-/** 解析上传的 Excel 文件，返回部分 InputParams */
+/** 解析上传的 Excel 文件，返回部分 InputParams（按 A 列 key 解析 → 语言无关） */
 export async function parseExcelUpload(file: File): Promise<Partial<InputParams>> {
   const buffer = await file.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
+  return parseWorkbookParams(workbook);
+}
 
-  const sheet = workbook.getWorksheet('参数');
+/** 从工作簿解析参数（A1 === 'key' 定位参数表；抽离以便无头测试） */
+export function parseWorkbookParams(workbook: ExcelJS.Workbook): Partial<InputParams> {
+  const t = i18n.t.bind(i18n);
+
+  // 语言无关定位：A1 === 'key' 的工作表即参数表
+  const sheet = workbook.worksheets.find(
+    (ws) => String(ws.getCell('A1').value ?? '').trim() === 'key'
+  );
   if (!sheet) {
-    throw new Error('未找到名为"参数"的工作表');
+    throw new Error(t('excel.errors.missingParamsSheet'));
   }
 
   const result: any = {};
-  const knownKeys = new Set(PARAM_ROWS.map(([k]) => k));
+  const knownKeys = new Set(PARAM_ROWS.map((r) => r.key));
 
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // 跳过表头

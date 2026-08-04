@@ -64,7 +64,7 @@ export default function FinancePanel() {
       type: 'category',
       data: financeResults.map(r => `${t('params.scheme')} ${r.scenarioId}`),
     },
-    yAxis: { type: 'value', name: '净现值' },
+    yAxis: { type: 'value', name: t('finance.chart.npv') },
     series: [{
       type: 'bar',
       data: financeResults.map(r => ({
@@ -90,7 +90,7 @@ export default function FinancePanel() {
       type: 'category',
       data: bestResult.cashflow.map(r => `Y${r.year}`),
     },
-    yAxis: { type: 'value', name: '累计现金流' },
+    yAxis: { type: 'value', name: t('finance.chart.cumulativeCashflow') },
     series: [
       {
         name: t('finance.cashflowChart'),
@@ -159,10 +159,10 @@ export default function FinancePanel() {
     },
   ];
 
-  // ─── 断电损失计算 ───
-  const monthlyUnserved = bestSimResult?.monthlyResults.map(m => m.totals.unserved_kWh) ?? [];
-  const totalUnserved = monthlyUnserved.reduce((s, v) => s + v, 0);
-  const annualOutageLoss = (totalUnserved / 24) * params.outageLoss.dailyProductionValue * params.outageLoss.lossRate;
+  // ─── 断电损失计算（E8 量纲修复：未供电小时数 × 每小时产值 × 损失率）───
+  const monthlyUnserved = bestSimResult?.monthlyResults.map(m => m.totals.unservedHours ?? 0) ?? [];
+  const totalUnservedHours = monthlyUnserved.reduce((s, v) => s + v, 0);
+  const annualOutageLoss = totalUnservedHours * (params.outageLoss.dailyProductionValue / 24) * params.outageLoss.lossRate;
 
   const outageChartOption = {
     tooltip: { trigger: 'axis' },
@@ -170,7 +170,7 @@ export default function FinancePanel() {
       type: 'category',
       data: monthlyUnserved.map((_, i) => `${i + 1}${t('results.timeScale.month')}`),
     },
-    yAxis: { type: 'value', name: 'kWh' },
+    yAxis: { type: 'value', name: 'h' },
     series: [{
       type: 'bar',
       data: monthlyUnserved,
@@ -268,7 +268,7 @@ export default function FinancePanel() {
         </Col>
         <Col span={5}>
           <Card size="small">
-            <Statistic title={t('finance.payback')} value={bestResult.paybackStatic.toFixed(2)} suffix="年" />
+            <Statistic title={t('finance.payback')} value={bestResult.paybackStatic.toFixed(2)} suffix={t('common.years')} />
           </Card>
         </Col>
         <Col span={5}>
@@ -295,8 +295,9 @@ export default function FinancePanel() {
             <Col span={6}>
               <Statistic
                 title={t('finance.outage.totalHours')}
-                value={totalUnserved / 1000}
-                suffix="kWh"
+                value={totalUnservedHours}
+                suffix="h"
+                precision={1}
               />
             </Col>
             <Col span={6}>

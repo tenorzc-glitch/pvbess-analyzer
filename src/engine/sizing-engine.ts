@@ -1,9 +1,10 @@
 /**
  * 定容寻优引擎
- * 
- * 给定光伏容量，以 200kWh 为步长扫描储能容量，
+ *
+ * 给定光伏容量，以固定步长扫描储能容量（能量逻辑：PCS = cRate × 能量），
  * 分别以最短回收期(PBP)和最大净现值(NPV)为目标找最优方案。
- * 额外增加 PCS=3倍负载功率的档位。
+ * 另设冲击负载档（功率逻辑）：PCS = 普通负载峰值 + 启动倍数×泵额定功率，
+ * 功率:能量 保持 1:2；该档不参与最优 PBP/NPV 评选。
  */
 
 import { InputParams, ScenarioConfig, ProfileData } from '../types';
@@ -26,14 +27,28 @@ export interface SizingRecord {
     paybackDynamic: number;
     annualRevenue: number;
   };
-  isSpecial?: boolean;
+  isShock?: boolean;
 }
 
 export interface SizingResult {
   records: SizingRecord[];
   bestPBP: SizingRecord | null;
   bestNPV: SizingRecord | null;
-  specialPCS: SizingRecord | null;
+  /** 冲击负载档（功率逻辑，独立展示，不参与最优评选） */
+  shockTier: SizingRecord | null;
+  /** 冲击档计算依据：profile 最大负荷与扣除泵启动倍数后的普通负载峰值 */
+  shockBasis: { profilePeak: number; normalPeak: number } | null;
+}
+
+/** 计算 profile 最大负荷（kW） */
+export function getProfilePeakLoad(profile: ProfileData): number {
+  let peak = 0;
+  for (const month of profile) {
+    for (const iv of month) {
+      if (iv.load_kW > peak) peak = iv.load_kW;
+    }
+  }
+  return peak;
 }
 
 /**
@@ -41,16 +56,14 @@ export interface SizingResult {
  * @param params - 输入参数
  * @param pvCapacity - 光伏容量 kWp
  * @param bessRange - [min, max] 储能容量范围 kWh
- * @param step - 扫描步长 kWh (默认 200)
  * @param profile - 负荷/光伏 Profile
- * @param maxLoad - 最大负荷 kW (用于 PCS=3×负载)
+ * @param step - 扫描步长 kWh (默认 200)
  */
 export function runSizingOptimization(
   params: InputParams,
   pvCapacity: number,
   bessRange: [number, number],
   profile: ProfileData,
-  maxLoad: number,
   step: number = 200
 ): SizingResult {
   const records: SizingRecord[] = [];
@@ -59,7 +72,7 @@ export function runSizingOptimization(
   // 更新光伏容量
   const sizingParams = { ...params, pv: { ...params.pv, capacity_kWp: pvCapacity } };
 
-  // 逐档扫描
+  // 逐档扫描（能量逻辑，不含冲击负载的 PCS 放大需求）
   for (let bess = bessRange[0]; bess <= bessRange[1]; bess += step) {
     if (bess === 0) continue; // 跳过 0 kWh
 
@@ -91,44 +104,50 @@ export function runSizingOptimization(
     });
   }
 
-  // PCS=3×负载的特殊档位
-  const specialPCS = maxLoad * 3;
-  const specialBess = specialPCS / sizingParams.bess.cRate; // 保持 0.5C
-  const specialScenario: ScenarioConfig = {
-    id: 999,
-    name: `PCS=3×Load (${specialBess}kWh)`,
+  // ─── 冲击负载档（功率逻辑）───
+  // 普通负载峰值 = profile 最大负荷 − (启动倍数−1)×泵额定功率（剔除泵启动瞬间的叠加分量）
+  // PCS = 普通负载峰值 + 启动倍数×泵额定功率；BESS = PCS / cRate（恒 1:2）
+  const profilePeak = getProfilePeakLoad(profile);
+  const pumpRated = params.load.pumpRatedPower_kW;
+  const mult = params.load.pumpStartMultiplier;
+  const normalPeak = Math.max(0, profilePeak - (mult - 1) * pumpRated);
+  const shockPCS = Math.round(normalPeak + mult * pumpRated);
+  const shockBess = Math.round(shockPCS / sizingParams.bess.cRate);
+
+  const shockScenario: ScenarioConfig = {
+    id: 6,
+    name: `${shockBess}kWh / ${shockPCS}kW (Shock)`,
     pvCapacity_kWp: pvCapacity,
-    bessCapacity_kWh: Math.round(specialBess),
-    pcsPower_kW: specialPCS,
+    bessCapacity_kWh: shockBess,
+    pcsPower_kW: shockPCS,
   };
 
-  const specialSim = runScenarioSimulation(sizingParams, specialScenario, profile);
-  const specialFinance = computeFinance(sizingParams, specialScenario, specialSim, baseline);
+  const shockSim = runScenarioSimulation(sizingParams, shockScenario, profile);
+  const shockFinance = computeFinance(sizingParams, shockScenario, shockSim, baseline);
 
-  const specialRecord: SizingRecord = {
-    bessCapacity_kWh: Math.round(specialBess),
-    pcsPower_kW: specialPCS,
-    scenario: specialScenario,
-    simResult: specialSim,
+  const shockTier: SizingRecord = {
+    bessCapacity_kWh: shockBess,
+    pcsPower_kW: shockPCS,
+    scenario: shockScenario,
+    simResult: shockSim,
     finance: {
-      capex: specialFinance.capex,
-      npv: specialFinance.npv,
-      irr: specialFinance.irr,
-      paybackStatic: specialFinance.paybackStatic,
-      paybackDynamic: specialFinance.paybackDynamic,
-      annualRevenue: specialFinance.annualRevenue,
+      capex: shockFinance.capex,
+      npv: shockFinance.npv,
+      irr: shockFinance.irr,
+      paybackStatic: shockFinance.paybackStatic,
+      paybackDynamic: shockFinance.paybackDynamic,
+      annualRevenue: shockFinance.annualRevenue,
     },
-    isSpecial: true,
+    isShock: true,
   };
 
-  // 找最优
-  const allRecords = [...records, specialRecord];
-  const bestPBP = allRecords.reduce((a, b) =>
-    a.finance.paybackStatic < b.finance.paybackStatic ? a : b
-  );
-  const bestNPV = allRecords.reduce((a, b) =>
-    a.finance.npv > b.finance.npv ? a : b
-  );
+  // 找最优（仅能量逻辑档参与，冲击档独立展示）
+  const bestPBP = records.length > 0
+    ? records.reduce((a, b) => (a.finance.paybackStatic < b.finance.paybackStatic ? a : b))
+    : null;
+  const bestNPV = records.length > 0
+    ? records.reduce((a, b) => (a.finance.npv > b.finance.npv ? a : b))
+    : null;
 
-  return { records, bestPBP, bestNPV, specialPCS: specialRecord };
+  return { records, bestPBP, bestNPV, shockTier, shockBasis: { profilePeak, normalPeak } };
 }

@@ -13,7 +13,6 @@ export interface CountryTemplate {
     referenceGHI: number;
     referenceCapacityFactor: number;
     deratingFactor: number;
-    annualDegradation: number;
   };
 
   bess: {
@@ -51,11 +50,6 @@ export interface CountryTemplate {
   capex: {
     pvCostPerKW: number;
     bessCostPerKWh: number;
-    pcsCostPerKW: number;
-    pvFixedCost: number;
-    bessFixedCost: number;
-    installationPct: number;
-    remoteTransport: number;
     gridConnectionCost: number;
   };
 }

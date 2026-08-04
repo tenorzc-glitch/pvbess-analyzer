@@ -62,7 +62,7 @@ export default function AdminPanel() {
         setUsers(list);
         setProjects((projectRes.data || []) as AdminProject[]);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || '加载失败');
+        if (!cancelled) setError(e?.message || t('common.loadFailed'));
       } finally {
         if (!cancelled) setLoading(false);
       }

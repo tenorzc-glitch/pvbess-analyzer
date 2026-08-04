@@ -35,10 +35,10 @@ export default function AuthPage() {
   const loginTab = (
     <Form onFinish={handleLogin} layout="vertical" size="large">
       <Form.Item name="email" rules={[{ required: cloudMode, message: t('auth.emailRequired') }]}>
-        <Input prefix={<MailOutlined />} placeholder={cloudMode ? t('auth.email') : `${t('auth.email')}（离线可选）`} />
+        <Input prefix={<MailOutlined />} placeholder={cloudMode ? t('auth.email') : `${t('auth.email')}${t('auth.offlineOptional')}`} />
       </Form.Item>
       <Form.Item name="password" rules={[{ required: cloudMode, message: t('auth.passwordRequired') }]}>
-        <Input.Password prefix={<LockOutlined />} placeholder={cloudMode ? t('auth.password') : `${t('auth.password')}（离线可选）`} />
+        <Input.Password prefix={<LockOutlined />} placeholder={cloudMode ? t('auth.password') : `${t('auth.password')}${t('auth.offlineOptional')}`} />
       </Form.Item>
       {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
       <Button type="primary" htmlType="submit" loading={loading || authLoading} block>
@@ -64,7 +64,7 @@ export default function AuthPage() {
           { required: true, message: t('auth.passwordRequired') },
           { min: 8, message: t('auth.passwordMinLength') },
         ]}
-        extra={<Text type="secondary" style={{ fontSize: 12 }}>8-32位，需包含字母和数字</Text>}
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>{t('auth.passwordHint')}</Text>}
       >
         <Input.Password prefix={<LockOutlined />} placeholder={t('auth.password')} />
       </Form.Item>

@@ -17,19 +17,16 @@ export function computeFinance(
   simResult: EngineScenarioResult,
   baseline: BaselineOutput
 ): FinanceResult {
-  // 1. 计算 CAPEX
-  const pvCapex = params.capex.pvCost_perkW * scenario.pvCapacity_kWp + params.capex.pvFixedCost;
-  const bessCapex = params.capex.bessCost_perkWh * scenario.bessCapacity_kWh
-    + params.capex.pcsCost_perkW * scenario.pcsPower_kW
-    + params.capex.bessFixedCost;
-  const bessCapexWithInstall = bessCapex * (1 + params.capex.installationPct);
-  const totalCapex = pvCapex + bessCapexWithInstall + params.capex.remoteTransport;
+  // 1. 计算 CAPEX（两项全包口径：PV 按 kWp、BESS 按 kWh，均含线缆/安装/运输，PCS 含于储能单价）
+  const pvCapex = params.capex.pvCost_perkW * scenario.pvCapacity_kWp;
+  const bessCapex = params.capex.bessCost_perkWh * scenario.bessCapacity_kWh;
+  const totalCapex = pvCapex + bessCapex;
 
   // 2. 首年节省（含绿电溢价、扣除断电损失）
   const year1Revenue = computeAnnualSaving(simResult, baseline, params);
 
   // 3. 首年 OPEX
-  const year1Opex = computeAnnualOpex(params, scenario, totalCapex, 1, simResult);
+  const year1Opex = computeAnnualOpex(params, scenario, pvCapex, bessCapex, 1, simResult);
 
   // 4. N 年现金流
   const cashflow: CashflowRow[] = [];
@@ -56,7 +53,7 @@ export function computeFinance(
   for (let y = 1; y <= projectLife; y++) {
     const soh = params.sohCurve[Math.min(y - 1, params.sohCurve.length - 1)] || 1.0;
     const yearRevenue = computeAnnualSaving(simResult, baseline, params);
-    const yearOpex = computeAnnualOpex(params, scenario, totalCapex, y, simResult);
+    const yearOpex = computeAnnualOpex(params, scenario, pvCapex, bessCapex, y, simResult);
     const replacementCost = computeReplacementCost(params, scenario, y);
 
     // 应用年增长率
@@ -74,10 +71,12 @@ export function computeFinance(
     cashflow.push({
       year: y,
       soh,
-      pvGeneration_kWh: simResult.annual.pv_kWh * soh,
-      gridSaving: baseline.annualGridCost - simResult.annual.gridCost * soh,
-      dieselSaving: baseline.annualDieselCost - simResult.annual.dieselCost * soh,
-      demandSaving: baseline.annualDemandCharge - simResult.annual.demandChargeCost,
+      // 光伏发电不随电池 SOH 衰减（光伏衰减已按决策剔除）
+      pvGeneration_kWh: simResult.annual.pv_kWh,
+      // 储能 SOH 衰减 → 节省逐年递减（对节省侧缩放，方向修正）
+      gridSaving: (baseline.annualGridCost - simResult.annual.gridCost) * soh,
+      dieselSaving: (baseline.annualDieselCost - simResult.annual.dieselCost) * soh,
+      demandSaving: (baseline.annualDemandCharge - simResult.annual.demandChargeCost) * soh,
       totalRevenue,
       opex,
       replacementCost,
@@ -93,13 +92,12 @@ export function computeFinance(
   const paybackStatic = computePayback(cashflow.map(r => r.netCashflow));
   const paybackDynamic = computePayback(cashflow.map(r => r.discountedCashflow));
 
-  // LCOE
+  // LCOE（光伏发电不计年衰减）
   let totalDiscountedEnergy = 0;
   let totalDiscountedCost = totalCapex;
-    for (let y = 1; y <= projectLife; y++) {
+  for (let y = 1; y <= projectLife; y++) {
     const df = Math.pow(1 + params.financial.discountRate, y);
-    const soh = params.sohCurve[Math.min(y - 1, params.sohCurve.length - 1)] || 1.0;
-    totalDiscountedEnergy += simResult.annual.pv_kWh * soh / df;
+    totalDiscountedEnergy += simResult.annual.pv_kWh / df;
     totalDiscountedCost += cashflow[y].opex / df;
   }
   const lcoe = totalDiscountedCost / Math.max(totalDiscountedEnergy, 1);
@@ -115,15 +113,14 @@ export function computeFinance(
     greenPremiumDetail = { annualGreenEnergy_kWh: annualGreenEnergy, annualPremium, totalPremium };
   }
 
-  // 断电损失明细
+  // 断电损失明细（E8 量纲修复：未供电小时数 × 每小时产值 × 损失率）
   let outageLossDetail: FinanceResult['outageLoss'] = undefined;
   if (params.outageLoss?.enabled) {
-    let totalUnserved = 0;
-    for (const mr of simResult.monthlyResults) {
-      totalUnserved += mr.totals.unserved_kWh || 0;
-    }
-    const annualLoss = (totalUnserved / 24) * params.outageLoss.dailyProductionValue * params.outageLoss.lossRate;
-    outageLossDetail = { totalUnserved_kWh: totalUnserved, annualLoss };
+    const totalUnservedHours = simResult.annual.unservedHours || 0;
+    const annualLoss = totalUnservedHours
+      * (params.outageLoss.dailyProductionValue / 24)
+      * params.outageLoss.lossRate;
+    outageLossDetail = { totalUnserved_hours: totalUnservedHours, annualLoss };
   }
 
   return {
@@ -166,14 +163,10 @@ function computeAnnualSaving(
     total += greenEnergy * params.greenPremium.premiumRate;
   }
 
-  // 断电损失（从收益中扣除）
+  // 断电损失（从收益中扣除；E8 量纲修复：未供电小时数 × 每小时产值 × 损失率）
   if (params.outageLoss?.enabled) {
-    // 汇总未供电量
-    let totalUnserved = 0;
-    for (const mr of sim.monthlyResults) {
-      totalUnserved += mr.totals.unserved_kWh || 0;
-    }
-    total -= (totalUnserved / 24) * params.outageLoss.dailyProductionValue * params.outageLoss.lossRate;
+    const unservedHours = sim.annual.unservedHours || 0;
+    total -= unservedHours * (params.outageLoss.dailyProductionValue / 24) * params.outageLoss.lossRate;
   }
 
   return total;
@@ -183,13 +176,14 @@ function computeAnnualSaving(
 function computeAnnualOpex(
   params: InputParams,
   scenario: ScenarioConfig,
-  totalCapex: number,
+  pvCapex: number,
+  bessCapex: number,
   year: number,
   simResult?: EngineScenarioResult
 ): number {
-  // 固定 OPEX
-  const pvOpex = totalCapex * params.opex.pvFixedOpexRate; // simplified
-  const bessOpex = params.opex.bessFixedOpexRate * scenario.bessCapacity_kWh * params.capex.bessCost_perkWh;
+  // 固定 OPEX：光伏运维费率 × 光伏 CAPEX（E5 修正：不再乘总 CAPEX）
+  const pvOpex = pvCapex * params.opex.pvFixedOpexRate;
+  const bessOpex = bessCapex * params.opex.bessFixedOpexRate;
 
   // 油机维护成本 = 年油机发电量 × 单位维护成本
   let dieselMaint = 0;
@@ -202,17 +196,14 @@ function computeAnnualOpex(
     dieselMaint = annualDiesel_kWh * rate;
   }
 
-  // 人工均衡成本
-  let balancingPerYear = 1; // default
-  if (year <= 2) balancingPerYear = params.opex.balancingSchedule[0] || 0;
-  else if (year <= 5) balancingPerYear = params.opex.balancingSchedule[1] || 1;
-  else if (year <= 10) balancingPerYear = params.opex.balancingSchedule[2] || 2;
-  else balancingPerYear = params.opex.balancingSchedule[3] || 3;
+  // 人工上站均衡：前 3 年每年 N1 次，第 4 年起每年 N2 次
+  // 单次人工 = 人数 × 每柜工时 × 柜数 × 人工单价；柜数 = ceil(BESS / 单柜容量)
+  const visitsPerYear = year <= 3 ? params.opex.balancingVisitsY1to3 : params.opex.balancingVisitsY4plus;
+  const cabinets = Math.max(1, Math.ceil(scenario.bessCapacity_kWh / params.opex.cabinetEnergyKwh));
+  const laborPerTrip = params.opex.balancingCrew * params.opex.balancingHoursPerCabinet * cabinets * params.opex.laborRate;
+  const balancingCost = visitsPerYear * (laborPerTrip + params.opex.travelCost + params.opex.equipmentCost);
 
-  const laborPerTrip = params.opex.balancingCrew * params.opex.balancingHours * params.opex.laborRate;
-  const balancingCost = balancingPerYear * (laborPerTrip + params.opex.travelCost + params.opex.equipmentCost);
-
-  // 冷却液更换
+  // 冷却液更换（每 coolantInterval 年一次，第 1 年不换）
   const coolantCost = (year > 1 && year % params.opex.coolantInterval === 0)
     ? params.opex.coolantCost : 0;
 
@@ -257,24 +248,22 @@ function computeIRR(cashflows: number[]): number {
   return rate;
 }
 
-/** 计算回收期（年，线性插值） */
+/** 计算回收期（年，线性插值；cashflows[0] 为第 0 年 −CAPEX） */
 function computePayback(cashflows: number[]): number {
-  let cumulative = 0;
-  let prevYear = 0;
-  let prevCum = 0;
+  // E1 修正：必须从第 0 年的负 CAPEX 开始累计，否则永远返回"未回收"
+  let cumulative = cashflows[0] ?? 0;
 
   for (let t = 1; t < cashflows.length; t++) {
+    const prevCum = cumulative;
     cumulative += cashflows[t];
     if (cumulative >= 0 && prevCum < 0) {
-      // 线性插值
+      // 线性插值：第 t-1 年到第 t 年之间回收
       const fraction = -prevCum / (cumulative - prevCum);
-      return prevYear + fraction;
+      return (t - 1) + fraction;
     }
-    prevYear = t;
-    prevCum = cumulative;
   }
 
-  return cashflows.length; // 未回收
+  return cashflows.length - 1; // 寿命期内未回收，返回项目寿命
 }
 
 /** 批量计算所有方案的财务结果 */

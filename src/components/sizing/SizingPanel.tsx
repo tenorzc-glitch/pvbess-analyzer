@@ -27,8 +27,8 @@ export default function SizingPanel() {
     // Use setTimeout to avoid blocking UI
     setTimeout(() => {
       try {
-        const maxLoad = 300; // Could be computed from profile
-        const r = runSizingOptimization(params, pvCapacity, [bessMin, bessMax], profile, maxLoad, step);
+        // 冲击档由引擎按 profile 实时最大负荷自动计算（普通负载峰值 + 3×泵额定）
+        const r = runSizingOptimization(params, pvCapacity, [bessMin, bessMax], profile, step);
         setResult(r);
       } catch (err: any) {
         console.error('Sizing error:', err);
@@ -43,12 +43,12 @@ export default function SizingPanel() {
   const pbpOption = {
     title: { text: `${t('sizing.bestPBP')}`, left: 'center' },
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', name: '储能容量 (kWh)', data: records.map(r => r.bessCapacity_kWh) },
-    yAxis: { type: 'value', name: '回收期 (年)' },
+    xAxis: { type: 'category', name: t('sizing.bessCapacityAxis'), data: records.map(r => r.bessCapacity_kWh) },
+    yAxis: { type: 'value', name: t('sizing.paybackAxis') },
     series: [{
       type: 'line', data: records.map(r => r.finance.paybackStatic),
       markPoint: result?.bestPBP ? {
-        data: [{ name: t('common.best'), coord: [records.indexOf(result.bestPBP), result.bestPBP.finance.paybackStatic], value: `${result.bestPBP.finance.paybackStatic.toFixed(2)}年` }],
+        data: [{ name: t('common.best'), coord: [records.indexOf(result.bestPBP), result.bestPBP.finance.paybackStatic], value: `${result.bestPBP.finance.paybackStatic.toFixed(2)}${t('common.years')}` }],
       } : undefined,
     }],
     grid: { left: 60, right: 20, top: 40, bottom: 30 },
@@ -58,7 +58,7 @@ export default function SizingPanel() {
   const npvOption = {
     title: { text: `${t('sizing.bestNPV')}`, left: 'center' },
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', name: '储能容量 (kWh)', data: records.map(r => r.bessCapacity_kWh) },
+    xAxis: { type: 'category', name: t('sizing.bessCapacityAxis'), data: records.map(r => r.bessCapacity_kWh) },
     yAxis: { type: 'value', name: 'NPV' },
     series: [{
       type: 'bar', data: records.map(r => r.finance.npv),
@@ -106,11 +106,11 @@ export default function SizingPanel() {
             <InputNumber value={pvCapacity} onChange={v => setPvCapacity(v || 500)} min={0} max={10000} style={{ width: '100%' }} />
           </Col>
           <Col span={6}>
-            <Text>储能范围-起始 (kWh)</Text>
+            <Text>{t('sizing.bessMin')}</Text>
             <InputNumber value={bessMin} onChange={v => setBessMin(v || 0)} min={0} max={10000} style={{ width: '100%' }} />
           </Col>
           <Col span={6}>
-            <Text>储能范围-终止 (kWh)</Text>
+            <Text>{t('sizing.bessMax')}</Text>
             <InputNumber value={bessMax} onChange={v => setBessMax(v || 3000)} min={0} max={10000} style={{ width: '100%' }} />
           </Col>
           <Col span={4}>
@@ -141,7 +141,7 @@ export default function SizingPanel() {
                   <>
                     <Text strong>{result.bestPBP.bessCapacity_kWh} kWh / {result.bestPBP.pcsPower_kW} kW</Text>
                     <br />
-                    <Text>回收期: {result.bestPBP.finance.paybackStatic.toFixed(2)} 年 | NPV: {(result.bestPBP.finance.npv / 1000).toFixed(0)}k</Text>
+                    <Text>{t('sizing.paybackShort')}: {result.bestPBP.finance.paybackStatic.toFixed(2)} {t('common.years')} | NPV: {(result.bestPBP.finance.npv / 1000).toFixed(0)}k</Text>
                   </>
                 )}
               </Card>
@@ -152,19 +152,32 @@ export default function SizingPanel() {
                   <>
                     <Text strong>{result.bestNPV.bessCapacity_kWh} kWh / {result.bestNPV.pcsPower_kW} kW</Text>
                     <br />
-                    <Text>NPV: {(result.bestNPV.finance.npv / 1000).toFixed(0)}k | 回收期: {result.bestNPV.finance.paybackStatic.toFixed(2)} 年</Text>
+                    <Text>NPV: {(result.bestNPV.finance.npv / 1000).toFixed(0)}k | {t('sizing.paybackShort')}: {result.bestNPV.finance.paybackStatic.toFixed(2)} {t('common.years')}</Text>
                   </>
                 )}
               </Card>
             </Col>
           </Row>
 
-          {/* PCS=3×Load 特殊档 */}
-          {result.specialPCS && (
+          {/* 冲击负载档（功率逻辑，独立展示，不参与最优评选） */}
+          {result.shockTier && (
             <Card size="small" style={{ marginBottom: 16, borderColor: '#722ed1' }}>
-              <Text strong style={{ color: '#722ed1' }}>{t('sizing.specialPCS')}: </Text>
-              <Text>{result.specialPCS.bessCapacity_kWh} kWh / {result.specialPCS.pcsPower_kW} kW — </Text>
-              <Text>NPV: {(result.specialPCS.finance.npv / 1000).toFixed(0)}k | 回收期: {result.specialPCS.finance.paybackStatic.toFixed(2)} 年</Text>
+              <Text strong style={{ color: '#722ed1' }}>{t('sizing.shockOption')}: </Text>
+              <Text>{result.shockTier.bessCapacity_kWh} kWh / {result.shockTier.pcsPower_kW} kW — </Text>
+              <Text>NPV: {(result.shockTier.finance.npv / 1000).toFixed(0)}k | {t('sizing.table.payback')}: {result.shockTier.finance.paybackStatic.toFixed(2)}</Text>
+              {result.shockBasis && (
+                <>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {t('sizing.normalPeakNote', {
+                      peak: result.shockBasis.profilePeak,
+                      normal: result.shockBasis.normalPeak,
+                      pump: params.load.pumpRatedPower_kW,
+                      mult: params.load.pumpStartMultiplier,
+                    })}
+                  </Text>
+                </>
+              )}
             </Card>
           )}
 

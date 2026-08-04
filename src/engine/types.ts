@@ -30,6 +30,7 @@ export interface DispatchInterval {
   unserved: number;
   socEnd: number;
   dgStart: number;       // 柴油机本次启动标志
+  gridPrice: number;     // 该时段购电价（分时 TOU，来自 profile）
 }
 
 /** 纯电网基准输出 */
@@ -76,6 +77,9 @@ export interface EngineMonthResult {
     bessCharge_kWh: number;
     bessDischarge_kWh: number;
     unserved_kWh: number;
+    gridCost: number;         // 当月购电费用（分时 TOU 精确计价）
+    monthPeakGrid_kW: number; // 当月电网侧峰值功率（需量费依据，含三变体）
+    unservedHours: number;    // 当月未供电小时数（E8 断电损失量纲）
   };
 }
 
@@ -92,4 +96,5 @@ export interface EngineAnnualSummary {
   dieselCost: number;
   demandChargeCost: number;
   totalEnergyCost: number;
+  unservedHours: number;      // 全年未供电小时数（E8 断电损失量纲）
 }

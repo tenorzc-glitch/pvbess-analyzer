@@ -5,6 +5,7 @@ import { useSimulationStore } from '../store/useSimulationStore';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { runAllSimulations } from '../engine/simulation-engine';
 import { computeAllFinance } from '../engine/financial-engine';
+import i18n from '../i18n';
 
 /**
  * 仿真计算 Hook
@@ -38,7 +39,7 @@ export function useSimulation() {
         );
         setFinanceResults(financeResults);
       } catch (err: any) {
-        setError(err.message || '仿真计算失败');
+        setError(err.message || i18n.t('common.simFailed'));
       }
     }, 100);
   }, [params, profile, scenarios, setResults, setFinanceResults, setIsRunning, setFinanceRunning, setError]);

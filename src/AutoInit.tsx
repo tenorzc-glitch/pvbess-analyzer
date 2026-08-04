@@ -4,6 +4,7 @@ import { useProjectStore } from './store/useProjectStore';
 import { useProfileStore } from './store/useProfileStore';
 import { useAuth } from './hooks/useAuth';
 import { ProfileData } from './types';
+import i18n from './i18n';
 
 /** 初始化：加载项目列表 + profile 数据 */
 export default function AutoInit() {
@@ -19,7 +20,7 @@ export default function AutoInit() {
       if (!cloudMode && projects.length === 0) {
         const project = {
           id: 'default-brazil',
-          name: '巴西咖啡农场 500kWp',
+          name: i18n.t('common.demoProjectName'),
           country: 'brazil' as const,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -72,7 +73,7 @@ function builtinProfile(): ProfileData {
         load_kW: load,
         pvPerUnit: pv,
         gridAvailable: true,
-        gridPrice: 0.65,
+        gridPrice: 0.748,
         daysInMonth: days[m],
       });
     }

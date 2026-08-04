@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Card, Form, InputNumber, Select, Slider, Collapse, Row, Col,
+  Card, Form, Input, InputNumber, Select, Slider, Collapse, Row, Col,
   Typography, Divider, Space, Tag, Table, Button, Tooltip, Switch, message
 } from 'antd';
 import { InfoCircleOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
@@ -13,16 +13,16 @@ import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 
-/** 支持的货币选项 */
+/** 支持的货币选项（名称经 i18n 渲染，避免英文模式残留中文） */
 const CURRENCY_OPTIONS = [
-  { value: 'BRL', label: 'BRL R$ — 巴西雷亚尔', symbol: 'R$', locale: 'pt-BR' },
-  { value: 'USD', label: 'USD $ — 美元', symbol: '$', locale: 'en-US' },
-  { value: 'EUR', label: 'EUR € — 欧元', symbol: '€', locale: 'de-DE' },
-  { value: 'CNY', label: 'CNY ¥ — 人民币', symbol: '¥', locale: 'zh-CN' },
-  { value: 'MXN', label: 'MXN MX$ — 墨西哥比索', symbol: 'MX$', locale: 'es-MX' },
-  { value: 'COP', label: 'COP $ — 哥伦比亚比索', symbol: 'COP$', locale: 'es-CO' },
-  { value: 'CLP', label: 'CLP $ — 智利比索', symbol: 'CLP$', locale: 'es-CL' },
-  { value: 'PEN', label: 'PEN S/ — 秘鲁索尔', symbol: 'S/', locale: 'es-PE' },
+  { value: 'BRL', symbol: 'R$', locale: 'pt-BR' },
+  { value: 'USD', symbol: '$', locale: 'en-US' },
+  { value: 'EUR', symbol: '€', locale: 'de-DE' },
+  { value: 'CNY', symbol: '¥', locale: 'zh-CN' },
+  { value: 'MXN', symbol: 'MX$', locale: 'es-MX' },
+  { value: 'COP', symbol: 'COP$', locale: 'es-CO' },
+  { value: 'CLP', symbol: 'CLP$', locale: 'es-CL' },
+  { value: 'PEN', symbol: 'S/', locale: 'es-PE' },
 ];
 
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -36,8 +36,14 @@ export default function InputsPanel() {
   const [uploading, setUploading] = useState(false);
   const MONTHS = (t('results.months', { returnObjects: true }) as string[]) || MONTH_KEYS;
 
+  // 停电模型：折合年停电小时 = Σ 每月停电工作日 × 单次时长
+  const outageCfg = params.grid.outage;
+  const outageAnnualHours =
+    (outageCfg?.eventDaysPerMonth?.reduce((s, d) => s + (d || 0), 0) ?? 0) *
+    (outageCfg?.eventMinutes ?? 0) / 60;
+
   const handleDownloadTemplate = () => {
-    downloadExcelTemplate(params).catch((err) => {
+    downloadExcelTemplate(params, scenarios).catch((err) => {
       console.error(err);
       message.error(t('params.downloadTemplate') + ' failed');
     });
@@ -190,14 +196,14 @@ export default function InputsPanel() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label={t('params.demandCharge')} help={`${params.currency.symbol}/kW·月`}>
+              <Form.Item label={t('params.demandCharge')} help={`${params.currency.symbol}/kW·${t('common.perMonth')}`}>
                 <InputNumber value={params.grid.demandCharge_perKW}
                   onChange={(v) => handleParamChange(['grid', 'demandCharge_perKW'], v)}
                   min={0} step={5} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label={t('params.excessRate')} help={`${params.currency.symbol}/kW·月`}>
+              <Form.Item label={t('params.excessRate')} help={`${params.currency.symbol}/kW·${t('common.perMonth')}`}>
                 <InputNumber value={params.grid.excessDemandRate}
                   onChange={(v) => handleParamChange(['grid', 'excessDemandRate'], v)}
                   min={0} step={5} style={{ width: '100%' }} />
@@ -229,6 +235,38 @@ export default function InputsPanel() {
                 <InputNumber value={params.grid.peakPrice_perkWh}
                   onChange={(v) => handleParamChange(['grid', 'peakPrice_perkWh'], v)}
                   min={0} step={0.05} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Panel>
+
+        {/* 电网停电模型（引擎级注入：停电工作日窗口内电网不可用，储能+油机备电） */}
+        <Panel header={t('params.outagePanel.title')} key="gridOutage">
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.outagePanel.eventDaysPerMonth')}>
+                <InputNumber value={outageCfg?.eventDaysPerMonth?.[0] ?? 0}
+                  onChange={(v) => handleParamChange(['grid', 'outage', 'eventDaysPerMonth'], Array(12).fill(v ?? 0))}
+                  min={0} max={31} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.outagePanel.eventMinutes')}>
+                <InputNumber value={outageCfg?.eventMinutes ?? 30}
+                  onChange={(v) => handleParamChange(['grid', 'outage', 'eventMinutes'], v ?? 30)}
+                  min={5} max={60} step={5} style={{ width: '100%' }} addonAfter="min" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.outagePanel.windowStart')}>
+                <Input value={outageCfg?.windowStart ?? '17:30'}
+                  onChange={(e) => handleParamChange(['grid', 'outage', 'windowStart'], e.target.value)}
+                  placeholder="HH:MM" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.outagePanel.annualHoursHint')}>
+                <Text strong>{outageAnnualHours.toFixed(1)} h</Text>
               </Form.Item>
             </Col>
           </Row>
@@ -327,68 +365,42 @@ export default function InputsPanel() {
           </Row>
         </Panel>
 
-        {/* CAPEX */}
-        <Panel header={t('params.capex')} key="capex">
+        {/* CAPEX（两项全包口径） */}
+        <Panel
+          header={
+            <Space>
+              {t('params.capex')}
+              <Tooltip title={t('params.capexFullPackageTip')}>
+                <InfoCircleOutlined style={{ color: '#999' }} />
+              </Tooltip>
+            </Space>
+          }
+          key="capex"
+        >
           <Row gutter={16}>
-            <Col span={6}>
+            <Col span={8}>
               <Form.Item label={t('params.pvUnitCost')}>
                 <InputNumber value={params.capex.pvCost_perkW}
                   onChange={(v) => handleParamChange(['capex', 'pvCost_perkW'], v)}
                   min={0} step={100} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/kWp`} />
               </Form.Item>
             </Col>
-            <Col span={6}>
+            <Col span={8}>
               <Form.Item label={t('params.bessUnitCost')}>
                 <InputNumber value={params.capex.bessCost_perkWh}
                   onChange={(v) => handleParamChange(['capex', 'bessCost_perkWh'], v)}
                   min={0} step={50} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/kWh`} />
               </Form.Item>
             </Col>
-            <Col span={6}>
-              <Form.Item label={t('params.pcsUnitCost')}>
-                <InputNumber value={params.capex.pcsCost_perkW}
-                  onChange={(v) => handleParamChange(['capex', 'pcsCost_perkW'], v)}
-                  min={0} step={50} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/kW`} />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label={t('params.installPct')}>
-                <InputNumber value={params.capex.installationPct * 100}
-                  onChange={(v) => handleParamChange(['capex', 'installationPct'], (v || 10) / 100)}
-                  min={0} max={50} formatter={(v) => `${v}%`} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
           </Row>
-          <Row gutter={16}>
-            <Col span={6}>
-              <Form.Item label={t('params.pvFixedCost')}>
-                <InputNumber value={params.capex.pvFixedCost}
-                  onChange={(v) => handleParamChange(['capex', 'pvFixedCost'], v)}
-                  min={0} step={10000} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label={t('params.bessFixedCost')}>
-                <InputNumber value={params.capex.bessFixedCost}
-                  onChange={(v) => handleParamChange(['capex', 'bessFixedCost'], v)}
-                  min={0} step={10000} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label={t('params.remoteTransport')}>
-                <InputNumber value={params.capex.remoteTransport}
-                  onChange={(v) => handleParamChange(['capex', 'remoteTransport'], v)}
-                  min={0} step={10000} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('params.capexFullPackageTip')}</Text>
         </Panel>
 
         {/* 财务假设 */}
         <Panel header={t('params.financial')} key="financial">
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item label={`${t('params.projectLife')} (年)`}>
+              <Form.Item label={t('params.projectLife')}>
                 <InputNumber value={params.financial.projectLife}
                   onChange={(v) => handleParamChange(['financial', 'projectLife'], v)}
                   min={1} max={30} style={{ width: '100%' }} />
@@ -418,6 +430,20 @@ export default function InputsPanel() {
           </Row>
           <Row gutter={16}>
             <Col span={6}>
+              <Form.Item label={t('params.taxRate')}>
+                <InputNumber value={(params.financial.taxRate ?? 0) * 100}
+                  onChange={(v) => handleParamChange(['financial', 'taxRate'], (v || 0) / 100)}
+                  min={0} max={50} formatter={(v) => `${v}%`} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={18}>
+              <Form.Item label=" ">
+                <Text type="secondary" style={{ fontSize: 12 }}>{t('params.taxRateNote')}</Text>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={6}>
               <Form.Item label={t('params.currency')}>
                 <Select
                   value={params.currency.code}
@@ -425,9 +451,111 @@ export default function InputsPanel() {
                     const opt = CURRENCY_OPTIONS.find(o => o.value === code);
                     if (opt) handleParamChange(['currency'], { code: opt.value, symbol: opt.symbol, locale: opt.locale });
                   }}
-                  options={CURRENCY_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                  options={CURRENCY_OPTIONS.map(o => ({
+                    value: o.value,
+                    label: `${o.value} ${o.symbol} — ${t(`params.currencies.${o.value}`)}`,
+                  }))}
                   style={{ width: '100%' }}
                 />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Panel>
+
+        {/* OPEX：固定费率 + 人工上站均衡（两段制）+ 冷却液更换 */}
+        <Panel header={t('params.opexPanel.title')} key="opex">
+          <Divider titlePlacement="start" plain>{t('params.opexPanel.ratesGroup')}</Divider>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.pvRate')}>
+                <InputNumber value={params.opex.pvFixedOpexRate * 100}
+                  onChange={(v) => handleParamChange(['opex', 'pvFixedOpexRate'], (v || 0) / 100)}
+                  min={0} max={10} step={0.1} formatter={(v) => `${v}%`} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.bessRate')}>
+                <InputNumber value={params.opex.bessFixedOpexRate * 100}
+                  onChange={(v) => handleParamChange(['opex', 'bessFixedOpexRate'], (v || 0) / 100)}
+                  min={0} max={10} step={0.1} formatter={(v) => `${v}%`} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Divider titlePlacement="start" plain>{t('params.opexPanel.balancingGroup')}</Divider>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.visitsY1to3')}>
+                <InputNumber value={params.opex.balancingVisitsY1to3}
+                  onChange={(v) => handleParamChange(['opex', 'balancingVisitsY1to3'], v ?? 2)}
+                  min={0} max={12} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.visitsY4plus')}>
+                <InputNumber value={params.opex.balancingVisitsY4plus}
+                  onChange={(v) => handleParamChange(['opex', 'balancingVisitsY4plus'], v ?? 4)}
+                  min={0} max={12} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.crew')}>
+                <InputNumber value={params.opex.balancingCrew}
+                  onChange={(v) => handleParamChange(['opex', 'balancingCrew'], v ?? 2)}
+                  min={1} max={10} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.hoursPerCabinet')}>
+                <InputNumber value={params.opex.balancingHoursPerCabinet}
+                  onChange={(v) => handleParamChange(['opex', 'balancingHoursPerCabinet'], v ?? 6)}
+                  min={1} max={24} style={{ width: '100%' }} addonAfter="h" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.cabinetEnergyKwh')}>
+                <InputNumber value={params.opex.cabinetEnergyKwh}
+                  onChange={(v) => handleParamChange(['opex', 'cabinetEnergyKwh'], v ?? 261)}
+                  min={50} max={500} style={{ width: '100%' }} addonAfter="kWh" />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.laborRate')}>
+                <InputNumber value={params.opex.laborRate}
+                  onChange={(v) => handleParamChange(['opex', 'laborRate'], v ?? 150)}
+                  min={0} step={10} style={{ width: '100%' }} addonAfter={`${params.currency.symbol}/h`} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.travelCost')}>
+                <InputNumber value={params.opex.travelCost}
+                  onChange={(v) => handleParamChange(['opex', 'travelCost'], v ?? 3000)}
+                  min={0} step={500} style={{ width: '100%' }} addonAfter={params.currency.symbol} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.equipmentCost')}>
+                <InputNumber value={params.opex.equipmentCost}
+                  onChange={(v) => handleParamChange(['opex', 'equipmentCost'], v ?? 1000)}
+                  min={0} step={100} style={{ width: '100%' }} addonAfter={params.currency.symbol} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Divider titlePlacement="start" plain>{t('params.opexPanel.coolantGroup')}</Divider>
+          <Row gutter={16}>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.coolantInterval')}>
+                <InputNumber value={params.opex.coolantInterval}
+                  onChange={(v) => handleParamChange(['opex', 'coolantInterval'], v ?? 5)}
+                  min={1} max={15} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label={t('params.opexPanel.coolantCost')}>
+                <InputNumber value={params.opex.coolantCost}
+                  onChange={(v) => handleParamChange(['opex', 'coolantCost'], v ?? 20000)}
+                  min={0} step={1000} style={{ width: '100%' }} addonAfter={params.currency.symbol} />
               </Form.Item>
             </Col>
           </Row>

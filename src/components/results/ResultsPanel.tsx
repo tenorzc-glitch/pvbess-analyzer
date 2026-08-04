@@ -6,12 +6,13 @@ import { useSimulationStore } from '../../store/useSimulationStore';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { EngineMonthResult } from '../../engine/types';
+import { scenarioDisplayName } from '../../utils/scenario-name';
 
 const { Text } = Typography;
 
 export default function ResultsPanel() {
   const { t } = useTranslation();
-  const MONTHS = (t('results.months', { returnObjects: true }) as string[]) || ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const MONTHS = (t('results.months', { returnObjects: true }) as string[]) || ['1','2','3','4','5','6','7','8','9','10','11','12'];
 
   const { results, scenarios, isRunning } = useSimulationStore();
   const { params } = useParamsStore();
@@ -309,7 +310,7 @@ export default function ResultsPanel() {
   const comparisonColumns = [
     { title: t('common.metric'), dataIndex: 'label', key: 'label', width: 160, fixed: 'left' as const },
     ...scenarios.map(s => ({
-      title: s.name,
+      title: scenarioDisplayName(s, t),
       dataIndex: `s${s.id}`,
       key: `s${s.id}`,
       align: 'right' as const,
@@ -392,7 +393,7 @@ export default function ResultsPanel() {
       <Card size="small">
         <Statistic title={t('results.kpi.annualDiesel')}
           value={(scenarioResult?.annual.dieselFuel_L || 0) / 1000}
-          suffix="千L" precision={1} />
+          suffix="kL" precision={1} />
       </Card>
     </Col>,
     <Col span={6} key="greenEnergy">
@@ -442,7 +443,7 @@ export default function ResultsPanel() {
         <Row gutter={16} style={{ marginBottom: 8 }} align="middle" justify="space-between">
           <Col>
             <Select value={selectedScenario} onChange={setSelectedScenario} style={{ width: 200 }}
-              options={scenarios.map(s => ({ value: s.id, label: s.name }))} />
+              options={scenarios.map(s => ({ value: s.id, label: scenarioDisplayName(s, t) }))} />
             {timeScale === 'day' && (
               <Select value={selectedMonth} onChange={setSelectedMonth} style={{ width: 120, marginLeft: 8 }}
                 options={MONTHS.map((m, i) => ({ value: i + 1, label: m }))} />

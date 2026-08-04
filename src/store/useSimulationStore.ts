@@ -16,13 +16,18 @@ interface SimulationState {
   clearResults: () => void;
 }
 
-/** 默认 5 方案配置 */
+/**
+ * 默认 6 方案配置：前 5 档为能量逻辑（PCS=0.5C），
+ * 第 6 档为冲击负载功率逻辑（普通负载峰值 305kW + 3×泵额定 180kW = 845kW，BESS=2×PCS）
+ * name 留空 → 显示层经 scenarioDisplayName() 按语言生成（指令⑨：英文模式零中文）
+ */
 export const DEFAULT_SCENARIOS: ScenarioConfig[] = [
-  { id: 1, name: '方案1 (400kWh)', pvCapacity_kWp: 500, bessCapacity_kWh: 400, pcsPower_kW: 200 },
-  { id: 2, name: '方案2 (600kWh)', pvCapacity_kWp: 500, bessCapacity_kWh: 600, pcsPower_kW: 300 },
-  { id: 3, name: '方案3 (800kWh)', pvCapacity_kWp: 500, bessCapacity_kWh: 800, pcsPower_kW: 400 },
-  { id: 4, name: '方案4 (1000kWh)', pvCapacity_kWp: 500, bessCapacity_kWh: 1000, pcsPower_kW: 500 },
-  { id: 5, name: '方案5 (1200kWh)', pvCapacity_kWp: 500, bessCapacity_kWh: 1200, pcsPower_kW: 600 },
+  { id: 1, name: '', pvCapacity_kWp: 500, bessCapacity_kWh: 400, pcsPower_kW: 200 },
+  { id: 2, name: '', pvCapacity_kWp: 500, bessCapacity_kWh: 600, pcsPower_kW: 300 },
+  { id: 3, name: '', pvCapacity_kWp: 500, bessCapacity_kWh: 800, pcsPower_kW: 400 },
+  { id: 4, name: '', pvCapacity_kWp: 500, bessCapacity_kWh: 1000, pcsPower_kW: 500 },
+  { id: 5, name: '', pvCapacity_kWp: 500, bessCapacity_kWh: 1200, pcsPower_kW: 600 },
+  { id: 6, name: '', pvCapacity_kWp: 500, bessCapacity_kWh: 1690, pcsPower_kW: 845 },
 ];
 
 export const useSimulationStore = create<SimulationState>((set) => ({

@@ -23,12 +23,3 @@ export function getEffectiveCapacity(
   const soh = sohCurve[Math.min(year - 1, sohCurve.length - 1)];
   return nominalCapacity_kWh * (soh ?? 1.0);
 }
-
-/**
- * 光伏年衰减
- * @param year - 年数（1-based）
- * @param annualDegradation - 年衰减率（默认 0.5%）
- */
-export function getPVDegradation(year: number, annualDegradation: number = 0.005): number {
-  return 1 - (year - 1) * annualDegradation;
-}

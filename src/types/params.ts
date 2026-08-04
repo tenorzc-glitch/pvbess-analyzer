@@ -1,17 +1,16 @@
 /** 输入参数（完整） */
 export interface InputParams {
   timeStep: number;               // h, 默认 0.25 (15分钟)
-  
+
   pv: {
     capacity_kWp: number;         // DC 容量
     deratingFactor: number;       // 综合衰减系数 0.75-0.85
-    annualDegradation: number;    // 年衰减率 0.5%
   };
 
   bess: {
     cRate: number;                // PCS 倍率
-    efficiencyCharge: number;     // 充电效率
-    efficiencyDischarge: number;  // 放电效率
+    efficiencyCharge: number;     // 充电效率（= sqrt(RTE)）
+    efficiencyDischarge: number;  // 放电效率（= sqrt(RTE)）
     socMax: number;               // 最大 SOC
     socMin: number;               // 技术最低 SOC
     socGridForming: number;       // 构网最低 SOC
@@ -39,26 +38,30 @@ export interface InputParams {
     flatPrice_perkWh: number;
     feedInPrice_perkWh: number;   // 上网电价（0 表示不上网）
     enablePeakArbitrage: boolean;
+    /** 电网停电模型（引擎级注入，不依赖 profile 的 gridAvailable） */
+    outage: {
+      eventDaysPerMonth: number[]; // [12] 每月发生停电的工作日数
+      eventMinutes: number;        // 每次停电时长（分钟），<=30
+      windowStart: string;         // 停电窗口起始时刻 'HH:MM'
+    };
   };
 
+  /** CAPEX 两项全包口径（均含线缆、安装、运输等附属费用） */
   capex: {
-    pvCost_perkW: number;
-    pvFixedCost: number;
-    bessCost_perkWh: number;
-    pcsCost_perkW: number;
-    bessFixedCost: number;
-    installationPct: number;      // 储能安装比例
-    remoteTransport: number;
+    pvCost_perkW: number;         // 光伏全包单价（货币/kWp）
+    bessCost_perkWh: number;      // 储能全包单价（货币/kWh，含 PCS）
   };
 
   opex: {
-    pvFixedOpexRate: number;      // %CAPEX/年
-    bessFixedOpexRate: number;
+    pvFixedOpexRate: number;      // 光伏运维费率 %光伏CAPEX/年
+    bessFixedOpexRate: number;    // 储能运维费率 %储能CAPEX/年
     dieselMaintenancePerkWh: number; // 油机维护成本（货币/kWh 发电量）
-    balancingSchedule: number[];  // 各阶段均衡次数/年 [Y1-2, Y3-5, Y6-10, Y11+]
-    balancingCrew: number;        // 上站人数
-    balancingHours: number;       // 每人单次工时
-    laborRate: number;            // 人工单价
+    balancingVisitsY1to3: number;    // 前 3 年每年人工上站均衡次数
+    balancingVisitsY4plus: number;   // 第 4 年起每年均衡次数
+    balancingCrew: number;           // 每次上站人数
+    balancingHoursPerCabinet: number;// 每柜每人耗时（小时）
+    cabinetEnergyKwh: number;        // 单柜容量（kWh），柜数=ceil(BESS/该值)
+    laborRate: number;            // 人工单价（货币/人·h）
     travelCost: number;           // 单次差旅
     equipmentCost: number;        // 单次均衡设备成本
     coolantInterval: number;      // 冷却液更换周期(年)
@@ -66,11 +69,11 @@ export interface InputParams {
   };
 
   financial: {
-    projectLife: number;          // 项目寿命(年)，默认 10
-    discountRate: number;         // 折现率
+    projectLife: number;          // 项目寿命(年)，默认 15
+    discountRate: number;         // 折现率，默认 12%
     priceGrowth: number;          // 电价/需量费年增长
     opexGrowth: number;           // OPEX 年增长
-    taxRate: number;              // 税率
+    taxRate: number;              // 税率（简化：对净现金流课税）
   };
 
   load: {

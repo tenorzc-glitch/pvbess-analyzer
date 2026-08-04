@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Project } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import i18n from '../i18n';
 
 const CACHE_KEY = 'pv-bess-projects-cache';
 
@@ -34,7 +35,7 @@ function writeCache(projects: Project[]) {
 function mapRow(row: any): Project {
   return {
     id: row.id,
-    name: row.name || '未命名项目',
+    name: row.name || i18n.t('project.untitled'),
     country: row.country || 'brazil',
     description: row.description,
     createdAt: row.created_at || new Date().toISOString(),
@@ -87,7 +88,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     try {
       // 获取当前登录用户 ID（RLS 策略要求 user_id 匹配 auth.uid()）
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) throw new Error('未登录');
+      if (!currentUser) throw new Error(i18n.t('project.notLoggedIn'));
       const { data, error } = await supabase.from('projects').insert({
         name: project.name,
         country: project.country,

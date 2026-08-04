@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import ExcelJS from 'exceljs';
 import { FinanceResult, InputParams } from '../types';
 import { BrandMap, HWEstimate } from './brand';
+import i18n from '../i18n';
 
 /** 报告导出选项 */
 export interface ReportOptions {
@@ -65,10 +66,11 @@ export async function exportPDF(elementId: string, fileName: string): Promise<vo
 }
 
 /**
- * 生成 10 年投资报告 Excel：
+ * 生成投资报告 Excel（标签全部经 i18n，随当前语言导出）：
  *  Sheet 1 财务指标
- *  Sheet 2 现金流（10 年）
+ *  Sheet 2 现金流（项目寿命全程）
  *  Sheet 3 关键参数
+ *  Sheet 4 HW 品牌对比（可选）
  */
 export async function exportExcelReport(
   financeResult: FinanceResult,
@@ -76,6 +78,7 @@ export async function exportExcelReport(
   params: InputParams,
   options?: ReportOptions
 ): Promise<void> {
+  const t = i18n.t.bind(i18n);
   const opts: ReportOptions = {
     includeGreen: options?.includeGreen ?? true,
     includeOutage: options?.includeOutage ?? true,
@@ -88,37 +91,37 @@ export async function exportExcelReport(
   wb.created = new Date();
 
   // ─── Sheet 1: 财务指标 ───
-  const sheet1 = wb.addWorksheet('财务指标');
+  const sheet1 = wb.addWorksheet(t('excel.sheets.finance'));
   sheet1.columns = [
-    { header: '指标', key: 'metric', width: 28 },
-    { header: '数值', key: 'value', width: 22 },
+    { header: t('excel.headers.metric'), key: 'metric', width: 28 },
+    { header: t('excel.headers.value'), key: 'value', width: 22 },
   ];
   sheet1.getRow(1).font = { bold: true };
 
   const metricRows: Array<[string, string]> = [
-    ['方案', scenarioName],
-    ['CAPEX', financeResult.capex.toFixed(2)],
-    ['首年收益', financeResult.annualRevenue.toFixed(2)],
-    ['NPV', financeResult.npv.toFixed(2)],
-    ['IRR', `${(financeResult.irr * 100).toFixed(2)}%`],
-    ['静态回收期 (年)', financeResult.paybackStatic.toFixed(2)],
-    ['动态回收期 (年)', financeResult.paybackDynamic.toFixed(2)],
-    ['LCOE', financeResult.lcoe.toFixed(4)],
-    ['B/C Ratio', financeResult.benefitCostRatio.toFixed(3)],
+    [t('excel.rows.scenario'), scenarioName],
+    [t('excel.rows.capex'), financeResult.capex.toFixed(2)],
+    [t('excel.rows.revenue'), financeResult.annualRevenue.toFixed(2)],
+    [t('excel.rows.npv'), financeResult.npv.toFixed(2)],
+    [t('excel.rows.irr'), `${(financeResult.irr * 100).toFixed(2)}%`],
+    [t('excel.rows.paybackStatic'), financeResult.paybackStatic.toFixed(2)],
+    [t('excel.rows.paybackDynamic'), financeResult.paybackDynamic.toFixed(2)],
+    [t('excel.rows.lcoe'), financeResult.lcoe.toFixed(4)],
+    [t('excel.rows.bcRatio'), financeResult.benefitCostRatio.toFixed(3)],
   ];
   // 绿电溢价明细（可选）
   if (opts.includeGreen && financeResult.greenPremium) {
     metricRows.push(
-      ['年绿电消纳量 (kWh)', financeResult.greenPremium.annualGreenEnergy_kWh.toFixed(0)],
-      ['年绿电溢价收益', financeResult.greenPremium.annualPremium.toFixed(2)],
-      ['全生命周期溢价', financeResult.greenPremium.totalPremium.toFixed(2)],
+      [t('excel.rows.greenEnergy'), financeResult.greenPremium.annualGreenEnergy_kWh.toFixed(0)],
+      [t('excel.rows.greenPremium'), financeResult.greenPremium.annualPremium.toFixed(2)],
+      [t('excel.rows.greenTotal'), financeResult.greenPremium.totalPremium.toFixed(2)],
     );
   }
   // 断电损失明细（可选）
   if (opts.includeOutage && financeResult.outageLoss) {
     metricRows.push(
-      ['年未供电量 (kWh)', financeResult.outageLoss.totalUnserved_kWh.toFixed(0)],
-      ['年断电损失', financeResult.outageLoss.annualLoss.toFixed(2)],
+      [t('excel.rows.unservedHours'), financeResult.outageLoss.totalUnserved_hours.toFixed(1)],
+      [t('excel.rows.outageLoss'), financeResult.outageLoss.annualLoss.toFixed(2)],
     );
   }
   for (const [m, v] of metricRows) {
@@ -126,19 +129,19 @@ export async function exportExcelReport(
   }
 
   // ─── Sheet 2: 现金流 ───
-  const sheet2 = wb.addWorksheet('现金流');
+  const sheet2 = wb.addWorksheet(t('excel.sheets.cashflow'));
   sheet2.columns = [
-    { header: 'Year', key: 'year', width: 8 },
-    { header: 'SOH', key: 'soh', width: 10 },
-    { header: 'PV Generation (kWh)', key: 'pvGeneration', width: 20 },
-    { header: 'Grid Saving', key: 'gridSaving', width: 16 },
-    { header: 'Diesel Saving', key: 'dieselSaving', width: 16 },
-    { header: 'Demand Saving', key: 'demandSaving', width: 16 },
-    { header: 'Total Revenue', key: 'totalRevenue', width: 16 },
-    { header: 'OPEX', key: 'opex', width: 14 },
-    { header: 'Net Cashflow', key: 'netCashflow', width: 16 },
-    { header: 'Discounted Cashflow', key: 'discountedCashflow', width: 22 },
-    { header: 'Cumulative DCF', key: 'cumulativeDCF', width: 18 },
+    { header: t('excel.cashflow.year'), key: 'year', width: 8 },
+    { header: t('excel.cashflow.soh'), key: 'soh', width: 10 },
+    { header: t('excel.cashflow.pvGen'), key: 'pvGeneration', width: 20 },
+    { header: t('excel.cashflow.gridSaving'), key: 'gridSaving', width: 16 },
+    { header: t('excel.cashflow.dieselSaving'), key: 'dieselSaving', width: 16 },
+    { header: t('excel.cashflow.demandSaving'), key: 'demandSaving', width: 16 },
+    { header: t('excel.cashflow.totalRevenue'), key: 'totalRevenue', width: 16 },
+    { header: t('excel.cashflow.opex'), key: 'opex', width: 14 },
+    { header: t('excel.cashflow.netCF'), key: 'netCashflow', width: 16 },
+    { header: t('excel.cashflow.discCF'), key: 'discountedCashflow', width: 22 },
+    { header: t('excel.cashflow.cumDCF'), key: 'cumulativeDCF', width: 18 },
   ];
   sheet2.getRow(1).font = { bold: true };
 
@@ -159,35 +162,34 @@ export async function exportExcelReport(
   }
 
   // ─── Sheet 3: 关键参数 ───
-  const sheet3 = wb.addWorksheet('参数');
+  const sheet3 = wb.addWorksheet(t('excel.sheets.params'));
   sheet3.columns = [
-    { header: '参数', key: 'param', width: 32 },
-    { header: '数值', key: 'value', width: 22 },
+    { header: t('excel.headers.param'), key: 'param', width: 32 },
+    { header: t('excel.headers.value'), key: 'value', width: 22 },
   ];
   sheet3.getRow(1).font = { bold: true };
 
   const paramRows: Array<[string, string | number]> = [
-    ['PV 容量 (kWp)', params.pv.capacity_kWp],
-    ['PV 综合衰减系数', params.pv.deratingFactor],
-    ['BESS 充电效率', params.bess.efficiencyCharge],
-    ['BESS 放电效率', params.bess.efficiencyDischarge],
-    ['BESS SOC 上限', params.bess.socMax],
-    ['BESS SOC 下限', params.bess.socMin],
-    ['柴油价格 (货币/L)', params.diesel.fuelPrice_perL],
-    ['合同需量 (kW)', params.grid.contractDemand_kW],
-    ['电价类型', params.grid.tariffType],
-    ['平电价 (货币/kWh)', params.grid.flatPrice_perkWh],
-    ['峰电价 (货币/kWh)', params.grid.peakPrice_perkWh],
-    ['PV 单位成本 (货币/kW)', params.capex.pvCost_perkW],
-    ['BESS 单位成本 (货币/kWh)', params.capex.bessCost_perkWh],
-    ['PCS 单位成本 (货币/kW)', params.capex.pcsCost_perkW],
-    ['项目寿命 (年)', params.financial.projectLife],
-    ['折现率', params.financial.discountRate],
-    ['电价年增长率', params.financial.priceGrowth],
-    ['OPEX 年增长率', params.financial.opexGrowth],
-    ['税率', params.financial.taxRate],
-    ['货币代码', params.currency.code],
-    ['货币符号', params.currency.symbol],
+    [t('excel.rows.pvCapacity'), params.pv.capacity_kWp],
+    [t('excel.rows.derating'), params.pv.deratingFactor],
+    [t('excel.rows.chargeEff'), params.bess.efficiencyCharge],
+    [t('excel.rows.dischargeEff'), params.bess.efficiencyDischarge],
+    [t('excel.rows.socUpper'), params.bess.socMax],
+    [t('excel.rows.socLower'), params.bess.socMin],
+    [t('excel.rows.dieselPrice'), params.diesel.fuelPrice_perL],
+    [t('excel.rows.contractDemand'), params.grid.contractDemand_kW],
+    [t('excel.rows.tariffType'), params.grid.tariffType],
+    [t('excel.rows.flatPrice'), params.grid.flatPrice_perkWh],
+    [t('excel.rows.peakPrice'), params.grid.peakPrice_perkWh],
+    [t('excel.rows.pvCost'), params.capex.pvCost_perkW],
+    [t('excel.rows.bessCost'), params.capex.bessCost_perkWh],
+    [t('excel.rows.projectLife'), params.financial.projectLife],
+    [t('excel.rows.discountRate'), params.financial.discountRate],
+    [t('excel.rows.priceGrowth'), params.financial.priceGrowth],
+    [t('excel.rows.opexGrowth'), params.financial.opexGrowth],
+    [t('excel.rows.taxRate'), params.financial.taxRate],
+    [t('excel.rows.currencyCode'), params.currency.code],
+    [t('excel.rows.currencySymbol'), params.currency.symbol],
   ];
   for (const [p, v] of paramRows) {
     sheet3.addRow({ param: p, value: v });
@@ -197,32 +199,31 @@ export async function exportExcelReport(
   if (opts.compareHW && opts.hwEstimate && opts.brands) {
     const hw = opts.hwEstimate;
     const brands = opts.brands;
-    const sheet4 = wb.addWorksheet('HW 对比');
+    const sheet4 = wb.addWorksheet(t('excel.sheets.hwCompare'));
     sheet4.columns = [
-      { header: '指标', key: 'metric', width: 30 },
-      { header: '行业平均', key: 'industry', width: 18 },
+      { header: t('excel.headers.metric'), key: 'metric', width: 30 },
+      { header: t('excel.headers.industry'), key: 'industry', width: 18 },
       { header: 'HW', key: 'hw', width: 18 },
-      { header: 'Δ (HW − 行业)', key: 'delta', width: 18 },
+      { header: t('excel.headers.deltaHW'), key: 'delta', width: 18 },
     ];
     sheet4.getRow(1).font = { bold: true };
 
     const cmpRows: Array<[string, string | number, string | number, string | number]> = [
-      ['充电效率', brands.industry_avg.efficiencyCharge, brands.HW.efficiencyCharge, brands.HW.efficiencyCharge - brands.industry_avg.efficiencyCharge],
-      ['放电效率', brands.industry_avg.efficiencyDischarge, brands.HW.efficiencyDischarge, brands.HW.efficiencyDischarge - brands.industry_avg.efficiencyDischarge],
-      ['电池单价 (货币/kWh)', brands.industry_avg.costPerKWh, brands.HW.costPerKWh, brands.HW.costPerKWh - brands.industry_avg.costPerKWh],
-      ['PCS 单价 (货币/kW)', brands.industry_avg.pcsCostPerKW, brands.HW.pcsCostPerKW, brands.HW.pcsCostPerKW - brands.industry_avg.pcsCostPerKW],
-      ['OPEX 比率', brands.industry_avg.opexRate, brands.HW.opexRate, brands.HW.opexRate - brands.industry_avg.opexRate],
-      ['CAPEX', financeResult.capex.toFixed(2), hw.capex.toFixed(2), (hw.capex - financeResult.capex).toFixed(2)],
-      ['首年收益', financeResult.annualRevenue.toFixed(2), hw.annualRevenue.toFixed(2), (hw.annualRevenue - financeResult.annualRevenue).toFixed(2)],
-      ['NPV', financeResult.npv.toFixed(2), hw.npv.toFixed(2), (hw.npv - financeResult.npv).toFixed(2)],
-      ['IRR', `${(financeResult.irr * 100).toFixed(2)}%`, `${(hw.irr * 100).toFixed(2)}%`, `${((hw.irr - financeResult.irr) * 100).toFixed(2)}pp`],
-      ['静态回收期 (年)', financeResult.paybackStatic.toFixed(2), hw.paybackStatic.toFixed(2), (hw.paybackStatic - financeResult.paybackStatic).toFixed(2)],
+      [t('excel.rows.rte'), brands.industry_avg.rte, brands.HW.rte, brands.HW.rte - brands.industry_avg.rte],
+      [t('excel.rows.rteSplit'), Math.sqrt(brands.industry_avg.rte).toFixed(4), Math.sqrt(brands.HW.rte).toFixed(4), (Math.sqrt(brands.HW.rte) - Math.sqrt(brands.industry_avg.rte)).toFixed(4)],
+      [t('excel.rows.bessCost'), brands.industry_avg.costPerKWh, brands.HW.costPerKWh, brands.HW.costPerKWh - brands.industry_avg.costPerKWh],
+      [t('excel.rows.opexRate'), brands.industry_avg.opexRate, brands.HW.opexRate, brands.HW.opexRate - brands.industry_avg.opexRate],
+      [t('excel.rows.capex'), financeResult.capex.toFixed(2), hw.capex.toFixed(2), (hw.capex - financeResult.capex).toFixed(2)],
+      [t('excel.rows.revenue'), financeResult.annualRevenue.toFixed(2), hw.annualRevenue.toFixed(2), (hw.annualRevenue - financeResult.annualRevenue).toFixed(2)],
+      [t('excel.rows.npv'), financeResult.npv.toFixed(2), hw.npv.toFixed(2), (hw.npv - financeResult.npv).toFixed(2)],
+      [t('excel.rows.irr'), `${(financeResult.irr * 100).toFixed(2)}%`, `${(hw.irr * 100).toFixed(2)}%`, `${((hw.irr - financeResult.irr) * 100).toFixed(2)}pp`],
+      [t('excel.rows.paybackStatic'), financeResult.paybackStatic.toFixed(2), hw.paybackStatic.toFixed(2), (hw.paybackStatic - financeResult.paybackStatic).toFixed(2)],
     ];
     for (const [m, i, h, d] of cmpRows) {
       sheet4.addRow({ metric: m, industry: i, hw: h, delta: d });
     }
     sheet4.addRow({});
-    sheet4.addRow({ metric: '注：HW 列为同容量下的简化估算（效率/OPEX 差异调整），非重新仿真。' });
+    sheet4.addRow({ metric: t('excel.hwNote') });
   }
 
   const buf = await wb.xlsx.writeBuffer();
