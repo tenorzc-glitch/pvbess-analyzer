@@ -15,7 +15,7 @@ export default function ResultsPanel() {
   const { t } = useTranslation();
   const MONTHS = (t('results.months', { returnObjects: true }) as string[]) || ['1','2','3','4','5','6','7','8','9','10','11','12'];
 
-  const { results, scenarios, isRunning } = useSimulationStore();
+  const { results, scenarios, isRunning, baselines } = useSimulationStore();
   const { params } = useParamsStore();
   const { profile } = useProfileStore();
   const [selectedScenario, setSelectedScenario] = useState(4);
@@ -158,8 +158,9 @@ export default function ResultsPanel() {
     };
   };
 
-  // ─── 月度节省费用（option builder 已抽取至 report-charts.ts） ───
-  const getMonthlySavingOption = () => buildMonthlySavingOption(t, monthlyTotals, params, MONTHS);
+  // ─── 月度节省费用（option builder 已抽取至 report-charts.ts；baseline 供需量差月度口径） ───
+  const baseline = baselines?.[0] ?? null;
+  const getMonthlySavingOption = () => buildMonthlySavingOption(t, monthlyTotals, params, MONTHS, baseline);
 
   // ─── 方案对比表格 ───
   const comparisonColumns = [

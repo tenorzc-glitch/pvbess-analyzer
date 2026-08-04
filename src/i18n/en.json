@@ -151,7 +151,9 @@
       "rainyMonths": "Rainy Months",
       "rainyOutage": "Rainy Outage Days",
       "computed": "Actual Effective Days",
-      "tip": "On PV+BESS outage days (rainy + maintenance) the whole plant stops — load is zero. Monthly maintenance and rainy outage days determine the actual effective days."
+      "stoppageLoadFactor": "Stoppage Load Factor",
+      "stoppageLoadFactorHelp": "Stoppage-day load = monthly avg load × factor",
+      "tip": "On stoppage days (rainy + maintenance) the PV+BESS system is down but the plant keeps running: flat low load = monthly avg × factor, served by grid/diesel. Maintenance and rainy outage days set the PV+BESS operating days."
     },
     "outageLoss": {
       "title": "Outage Loss",
@@ -238,8 +240,13 @@
     "monthlySaving": "Monthly Savings",
     "saving": {
       "grid": "Grid Cost Saving",
-      "diesel": "Diesel Cost Saving"
+      "diesel": "Diesel Cost Saving",
+      "pvSelfUse": "PV Self-Use",
+      "arbitrage": "BESS Arbitrage",
+      "demand": "Demand Reduction"
     },
+    "peakBefore": "Pre-Install Load Peak",
+    "peakAfter": "Post-Install Grid Peak",
     "months": [
       "Jan",
       "Feb",
@@ -261,7 +268,7 @@
       "bessDischarge": "BESS Discharge",
       "dieselGen": "Diesel Gen",
       "toLoad": "To Load",
-      "toBess": "Charge",
+      "toBess": "BESS Charge",
       "curtailment": "Curtailment",
       "loss": "Loss"
     }
@@ -317,6 +324,13 @@
     "rte": "Round-Trip Efficiency",
     "rteSplit": "Charge/Discharge Eff.",
     "fullPackageCost": "BESS Full-Package Cost (incl. PCS/install)",
+    "dod": "Depth of Discharge (DOD)",
+    "operatingDays": "Operating Days / Year",
+    "sohY10": "Year-10 SOH",
+    "opexYear1": "Year-1 OPEX",
+    "revenue10": "10-Year Total Revenue",
+    "npv10": "NPV (10-Year)",
+    "throughput10": "10-Year Discharge Throughput",
     "noScenario": "No scenario selected; cannot compute CAPEX comparison"
   },
   "report": {
@@ -355,40 +369,51 @@
       "projectLife": "Project Life",
       "discountRate": "Discount Rate",
       "capexUnitPV": "PV Turnkey Unit Cost",
-      "capexUnitBESS": "BESS Turnkey Unit Cost"
+      "capexUnitBESS": "BESS Turnkey Unit Cost",
+      "pvNote": "PV sizing assumption: {{kwp}} kWp requires ≈{{area}} m² (rooftop/open ground) — sized to fully utilize the owner's available land"
     },
     "strategy": {
       "s1": "PV serves the load first; surplus charges the battery. No grid feed-in (feed-in = 0); excess is curtailed",
-      "s2": "Battery discharges during peak-price hours for arbitrage and shaves grid peak demand",
-      "s3": "Demand control: grid draw capped at 105% of the {{demand}} kW contract demand to avoid excess penalties",
+      "s2": "Valley-charge/peak-discharge arbitrage: the battery discharges into peak-price hours; off-peak it discharges only to shave demand above the threshold, saving energy for peak hours",
+      "s3": "Demand management: off-peak discharge caps grid draw near {{threshold}} kW (50% of the {{demand}} kW contract demand) to avoid excess penalties",
       "s4": "During outage windows ({{minutes}} min from {{start}}), battery and diesel jointly back up critical loads",
       "s5": "Diesel stops as soon as the grid returns — pure outage backup only",
       "s6": "Battery SOC operates within {{min}}–{{max}}, keeping reserve energy for unexpected outages",
-      "s7": "On rainy-season/maintenance shutdown days the plant load is zero — no energy consumed",
+      "s7": "On rainy-season/maintenance stoppage days the PV+BESS system is down (no PV, battery unavailable) but the plant keeps running at a flat low load ({{factor}}% of monthly average) served by grid/diesel — not a full shutdown",
       "s8": "15-minute settlement: peak {{peak}}/kWh, off-peak {{offpeak}}/kWh",
+      "s9": "Net SOC consumed each day is restored overnight by off-peak grid charging (power-limited, does not raise the demand peak)",
       "dispatchChart": "Representative Day 15-min Dispatch"
     },
     "savings": {
-      "baseline": "Grid-only Baseline",
-      "project": "PV+BESS Project",
+      "before": "Before PV+BESS",
+      "after": "After PV+BESS",
       "saving": "Annual Saving",
       "gridEnergy": "Energy Charges",
       "demand": "Demand Charges (incl. penalties)",
       "diesel": "Diesel Cost",
       "total": "Total",
+      "breakdownTitle": "Annual Savings Composition",
+      "catPvSelfUse": "a) PV self-use replacing grid energy",
+      "catArbitrage": "b) BESS valley-charge/peak-discharge arbitrage",
+      "catDemand": "c) Demand charge reduction",
+      "catDiesel": "d) Diesel cost reduction",
       "greenRow": "Green Premium Revenue",
       "outageRow": "Avoided Outage Loss",
       "firstYearTotal": "First-year Gross Savings",
       "firstYearOpex": "First-year OPEX",
       "firstYearNet": "First-year Net Cash Flow",
       "monthlyChart": "Monthly Savings Breakdown",
-      "note": "Note: baseline = grid-only with diesel backup during outage windows; demand charges include excess penalties; revenue grows with tariff escalation; OPEX includes on-site battery balancing and coolant replacement."
+      "note": "Note: 'Before' = grid-only with diesel backup during outage windows; the four components reconcile exactly with the total cost delta (a+b = energy-charge delta, +c+d = total savings); revenue grows with tariff escalation; OPEX includes on-site battery balancing and coolant replacement."
     },
     "invest": {
       "capexPV": "PV CAPEX",
       "capexBESS": "BESS CAPEX",
       "capexTotal": "Total CAPEX",
+      "npv10": "NPV (10-Year)",
+      "lcoe10": "LCOE (10-Year)",
+      "pbp": "Static Payback",
       "cashflowTable": "Lifecycle Cash Flow",
+      "cashflowTable10": "10-Year Cash Flow",
       "year": "Year",
       "revenue": "Revenue",
       "opex": "OPEX",
@@ -416,14 +441,13 @@
     },
     "hw": {
       "paramTitle": "Huawei vs Industry Average: Key Parameters",
-      "sohEnd": "SOH (Year 15)",
       "strategyDiffTitle": "Operation Strategy Differences",
       "d1": "Higher RTE ({{hw}}% vs {{ind}}%): per-cycle loss drops from {{indLoss}}% to {{hwLoss}}% — the same charged energy serves more load",
-      "d2": "Slower degradation (Year-15 SOH {{hwSoh}}% vs {{indSoh}}%): more usable energy and savings in later years",
-      "d3": "Lower OPEX rate ({{hwOpex}}% vs {{indOpex}}%) at a higher upfront cost (turnkey {{hwCost}} vs {{indCost}})",
-      "savingTitle": "Financial Comparison (simplified same-capacity estimate)",
-      "energyTitle": "Energy Flow Improvement",
-      "energyText": "Estimated from the scheme's annual charge of {{charge}} kWh: raising RTE from {{ind}}% to {{hw}}% yields ≈{{kwh}} kWh more delivered energy per year ({{pct}}% less conversion loss)."
+      "d2": "DOD {{hwDod}}% vs {{indDod}}% and {{hwDays}} vs {{indDays}} operating days/year: more usable energy and higher availability",
+      "d3": "Year-10 SOH {{hwSoh}}% vs {{indSoh}}% (slower degradation); no on-site balancing visits, no coolant replacement (industry-avg estimates included in OPEX)",
+      "throughputTitle": "10-Year Discharge Throughput",
+      "savingTitle": "Financial Comparison (simplified same-capacity estimate, 10-year basis)",
+      "financeNote": "Note: HW column = simplified same-capacity estimate (scaled by RTE × DOD × operating days), not a re-simulation."
     }
   },
   "theme": {
@@ -562,7 +586,14 @@
       "socLower": "BESS SOC Lower",
       "rte": "Round-trip Efficiency (RTE)",
       "rteSplit": "Charge/Discharge Eff. (√RTE)",
-      "opexRate": "OPEX Rate"
+      "opexRate": "OPEX Rate",
+      "dod": "Depth of Discharge (DOD)",
+      "operatingDays": "Operating Days / Year",
+      "sohY10": "Year-10 SOH",
+      "opexYear1": "Year-1 OPEX",
+      "revenue10": "10-Year Total Revenue",
+      "npv10": "NPV (10-Year)",
+      "throughput10": "10-Year Discharge Throughput"
     },
     "cashflow": {
       "year": "Year",

@@ -208,16 +208,25 @@ export async function exportExcelReport(
     ];
     sheet4.getRow(1).font = { bold: true };
 
+    // 行业侧 10 年口径（现金流表前 10 年）
+    const cf10 = financeResult.cashflow.filter((r) => r.year <= 10);
+    const revenue10Ind = cf10.reduce((s, r) => s + r.totalRevenue, 0);
+    const npv10Ind = cf10.reduce((s, r) => s + r.discountedCashflow, 0);
+    const opexInd1 = financeResult.cashflow.find((r) => r.year === 1)?.opex ?? 0;
+
     const cmpRows: Array<[string, string | number, string | number, string | number]> = [
       [t('excel.rows.rte'), brands.industry_avg.rte, brands.HW.rte, brands.HW.rte - brands.industry_avg.rte],
       [t('excel.rows.rteSplit'), Math.sqrt(brands.industry_avg.rte).toFixed(4), Math.sqrt(brands.HW.rte).toFixed(4), (Math.sqrt(brands.HW.rte) - Math.sqrt(brands.industry_avg.rte)).toFixed(4)],
+      [t('excel.rows.dod'), brands.industry_avg.dod, brands.HW.dod, brands.HW.dod - brands.industry_avg.dod],
+      [t('excel.rows.operatingDays'), brands.industry_avg.operatingDaysPerYear, brands.HW.operatingDaysPerYear, brands.HW.operatingDaysPerYear - brands.industry_avg.operatingDaysPerYear],
+      [t('excel.rows.sohY10'), (brands.industry_avg.sohCurve[9] ?? 0).toFixed(3), (brands.HW.sohCurve[9] ?? 0).toFixed(3), ((brands.HW.sohCurve[9] ?? 0) - (brands.industry_avg.sohCurve[9] ?? 0)).toFixed(3)],
       [t('excel.rows.bessCost'), brands.industry_avg.costPerKWh, brands.HW.costPerKWh, brands.HW.costPerKWh - brands.industry_avg.costPerKWh],
-      [t('excel.rows.opexRate'), brands.industry_avg.opexRate, brands.HW.opexRate, brands.HW.opexRate - brands.industry_avg.opexRate],
       [t('excel.rows.capex'), financeResult.capex.toFixed(2), hw.capex.toFixed(2), (hw.capex - financeResult.capex).toFixed(2)],
-      [t('excel.rows.revenue'), financeResult.annualRevenue.toFixed(2), hw.annualRevenue.toFixed(2), (hw.annualRevenue - financeResult.annualRevenue).toFixed(2)],
-      [t('excel.rows.npv'), financeResult.npv.toFixed(2), hw.npv.toFixed(2), (hw.npv - financeResult.npv).toFixed(2)],
-      [t('excel.rows.irr'), `${(financeResult.irr * 100).toFixed(2)}%`, `${(hw.irr * 100).toFixed(2)}%`, `${((hw.irr - financeResult.irr) * 100).toFixed(2)}pp`],
+      [t('excel.rows.opexYear1'), opexInd1.toFixed(2), hw.opexYear1.toFixed(2), (hw.opexYear1 - opexInd1).toFixed(2)],
+      [t('excel.rows.revenue10'), revenue10Ind.toFixed(2), hw.revenue10.toFixed(2), (hw.revenue10 - revenue10Ind).toFixed(2)],
+      [t('excel.rows.npv10'), npv10Ind.toFixed(2), hw.npv10.toFixed(2), (hw.npv10 - npv10Ind).toFixed(2)],
       [t('excel.rows.paybackStatic'), financeResult.paybackStatic.toFixed(2), hw.paybackStatic.toFixed(2), (hw.paybackStatic - financeResult.paybackStatic).toFixed(2)],
+      [t('excel.rows.throughput10'), '-', `${(hw.throughput10 / 1000).toFixed(0)} MWh`, '-'],
     ];
     for (const [m, i, h, d] of cmpRows) {
       sheet4.addRow({ metric: m, industry: i, hw: h, delta: d });

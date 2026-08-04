@@ -151,7 +151,9 @@
       "rainyMonths": "雨季月份",
       "rainyOutage": "雨季停运天数",
       "computed": "实际生效天数",
-      "tip": "光储系统停运日（雨季+检修）全厂停产，负荷归零不计；各月检修与雨季停运天数合计决定实际生效天数"
+      "stoppageLoadFactor": "停运日负荷系数",
+      "stoppageLoadFactorHelp": "停运日工厂负荷 = 月均负荷 × 系数",
+      "tip": "停运日（雨季+检修）= 光储系统停机，工厂不停产：按“月均负荷×停运系数”平坦低负荷运行，由电网/柴油供电；各月检修与雨季停运天数决定光储运行天数"
     },
     "outageLoss": {
       "title": "断电损失",
@@ -238,8 +240,13 @@
     "monthlySaving": "月度节省费用",
     "saving": {
       "grid": "电费节省",
-      "diesel": "柴油费节省"
+      "diesel": "柴油费节省",
+      "pvSelfUse": "PV 自用",
+      "arbitrage": "储能套利",
+      "demand": "需量降低"
     },
+    "peakBefore": "部署前负荷峰值",
+    "peakAfter": "部署后电网峰值",
     "months": [
       "1月",
       "2月",
@@ -258,10 +265,10 @@
       "title": "能量流 Sankey 图",
       "pvGen": "光伏发电",
       "gridImport": "电网购电",
-      "bessDischarge": "电池放电",
+      "bessDischarge": "储能放电",
       "dieselGen": "柴油发电",
       "toLoad": "供给负荷",
-      "toBess": "充电",
+      "toBess": "储能充电",
       "curtailment": "弃光",
       "loss": "损耗"
     }
@@ -317,6 +324,13 @@
     "rte": "储能综合效率",
     "rteSplit": "充/放效率",
     "fullPackageCost": "储能全包单价（含 PCS/安装）",
+    "dod": "放电深度 (DOD)",
+    "operatingDays": "年运行天数",
+    "sohY10": "第 10 年 SOH",
+    "opexYear1": "首年 OPEX",
+    "revenue10": "10 年总收益",
+    "npv10": "NPV（10 年）",
+    "throughput10": "10 年放电吞吐",
     "noScenario": "未选择方案，无法计算 CAPEX 对比"
   },
   "report": {
@@ -355,40 +369,51 @@
       "projectLife": "项目寿命",
       "discountRate": "折现率",
       "capexUnitPV": "光伏全包单价",
-      "capexUnitBESS": "储能全包单价"
+      "capexUnitBESS": "储能全包单价",
+      "pvNote": "光伏容量假设：{{kwp}} kWp 约需 {{area}} m² 场地（屋顶/空地），按业主意向将可用土地充分利用"
     },
     "strategy": {
       "s1": "光伏优先供给负荷，余电为储能充电；不上网（feed-in = 0），富余部分弃光",
-      "s2": "储能在峰时电价时段放电套利，并削减电网峰值需量",
-      "s3": "需量控制：电网功率控制在合同需量 {{demand}} kW 的 105% 以内，规避超需罚款",
+      "s2": "谷充峰放套利：储能在峰价时段集中放电；非峰时段仅在净负荷超过需量阈值时放电削峰，电量优先留给峰段",
+      "s3": "需量管理：非峰时段当净负荷超过 {{threshold}} kW（合同需量 {{demand}} kW 的 50%）时放电削峰，规避超需罚款",
       "s4": "停电窗口（{{start}} 起 {{minutes}} 分钟）内由储能与柴油机联合备电，保障关键负荷",
       "s5": "电网恢复后柴油机立即停止，仅作纯停电备用",
       "s6": "储能 SOC 运行窗口 {{min}}–{{max}}，常备备用电量应对突发停电",
-      "s7": "雨季/检修停运日全厂负荷为零，不消耗能源",
+      "s7": "雨季/检修停运日：光储系统停机（PV 不出力、储能不可用），工厂转入低负荷值守运行（月均负荷的 {{factor}}%），由电网/柴油供电——并非全厂停产",
       "s8": "逐 15 分钟时段计价：峰时 {{peak}}/kWh、非峰 {{offpeak}}/kWh",
+      "s9": "储能日末净消耗的 SOC 由夜间谷价电网充电恢复（充电功率受限，不推高需量峰值）",
       "dispatchChart": "代表日 15 分钟调度曲线"
     },
     "savings": {
-      "baseline": "纯电网基线",
-      "project": "光储方案",
+      "before": "部署光储前",
+      "after": "部署光储后",
       "saving": "年节省",
       "gridEnergy": "电量电费",
       "demand": "需量电费（含超需罚款）",
       "diesel": "柴油费用",
       "total": "合计",
+      "breakdownTitle": "年节省构成分解",
+      "catPvSelfUse": "a) PV 自用替代市电",
+      "catArbitrage": "b) 储能谷充峰放套利",
+      "catDemand": "c) 需量电费降低",
+      "catDiesel": "d) 柴油费用降低",
       "greenRow": "绿电溢价收益",
       "outageRow": "避免断电损失",
       "firstYearTotal": "首年总收益",
       "firstYearOpex": "首年 OPEX",
       "firstYearNet": "首年净现金流",
       "monthlyChart": "月度节省构成",
-      "note": "注：基线为无光储纯电网口径（停电窗口柴油备电）；需量电费含超需罚款；收益随电价年增长、OPEX 含人工上站均衡与冷却液更换。"
+      "note": "注：部署前为无光储纯电网口径（停电窗口柴油备电）；四分量分解与总费用差精确对账（a+b=电量电费差，+c+d=总节省）；收益随电价年增长，OPEX 含人工上站均衡与冷却液更换。"
     },
     "invest": {
       "capexPV": "光伏 CAPEX",
       "capexBESS": "储能 CAPEX",
       "capexTotal": "总 CAPEX",
+      "npv10": "NPV（10 年）",
+      "lcoe10": "LCOE（10 年）",
+      "pbp": "静态回收期",
       "cashflowTable": "全生命周期现金流",
+      "cashflowTable10": "10 年现金流",
       "year": "年份",
       "revenue": "当年收益",
       "opex": "当年 OPEX",
@@ -416,14 +441,13 @@
     },
     "hw": {
       "paramTitle": "华为 vs 行业平均：关键参数",
-      "sohEnd": "SOH（第 15 年）",
       "strategyDiffTitle": "运行策略差异",
-      "d1": "更高 RTE（{{hw}}% vs {{ind}}%）：每次充放损耗率由 {{indLoss}}% 降至 {{hwLoss}}%，同样的充电量可为负荷多供电",
-      "d2": "更慢衰减（第 15 年 SOH {{hwSoh}}% vs {{indSoh}}%）：寿命中后期可用电量与节省更高",
-      "d3": "更低 OPEX 率（{{hwOpex}}% vs {{indOpex}}%）但初始投资更高（全包单价 {{hwCost}} vs {{indCost}}）",
-      "savingTitle": "财务对比（同容量简化估算）",
-      "energyTitle": "能量流改善",
-      "energyText": "按方案年充电量 {{charge}} kWh 估算：RTE 由 {{ind}}% 提升至 {{hw}}%，年额外可供电量约 {{kwh}} kWh（充放损耗降低 {{pct}}%）。"
+      "d1": "更高 RTE（{{hw}}% vs {{ind}}%）：充放损耗由 {{indLoss}}% 降至 {{hwLoss}}%，同等充电量可为负荷多供电",
+      "d2": "DOD {{hwDod}}% vs {{indDod}}%、年运行 {{hwDays}} vs {{indDays}} 天：可用电量与在线时长双高",
+      "d3": "第 10 年 SOH {{hwSoh}}% vs {{indSoh}}%，衰减更慢；免人工上站均衡、免冷却液更换（行业方案按估值计入 OPEX）",
+      "throughputTitle": "10 年放电吞吐对比",
+      "savingTitle": "财务对比（同容量简化估算，10 年口径）",
+      "financeNote": "注：华为列为同容量简化估算（RTE×DOD×运行天数放大），非重新仿真。"
     }
   },
   "theme": {
@@ -562,7 +586,14 @@
       "socLower": "BESS SOC 下限",
       "rte": "储能综合效率 (RTE)",
       "rteSplit": "充/放效率 (√RTE)",
-      "opexRate": "OPEX 比率"
+      "opexRate": "OPEX 比率",
+      "dod": "放电深度 (DOD)",
+      "operatingDays": "年运行天数",
+      "sohY10": "第 10 年 SOH",
+      "opexYear1": "首年 OPEX",
+      "revenue10": "10 年总收益",
+      "npv10": "NPV（10 年）",
+      "throughput10": "10 年放电吞吐"
     },
     "cashflow": {
       "year": "年",

@@ -32,6 +32,14 @@ export interface FinanceResult {
     annualDemandCharge: number;
     annualTotal: number;
   };
+  /** 首年节省四分量分解（a+b = 电网费差，+c+d = 总节省，精确对账） */
+  savingsBreakdown: {
+    pvSelfUse: number;   // a) PV 自用替代市电
+    arbitrage: number;   // b) 储能套利净值（放电价值 − 电网充电成本）
+    demand: number;      // c) 需量费降低
+    diesel: number;      // d) 柴油费降低
+    total: number;       // a+b+c+d
+  };
   /** 绿电溢价明细（仅 greenPremium.enabled 时存在） */
   greenPremium?: {
     annualGreenEnergy_kWh: number;

@@ -8,7 +8,8 @@ import { InputParams } from '../types';
  * - 柴油：ANP 米纳斯吉拉斯州均价 6.82 BRL/L
  * - 储能综合效率：行业 RTE 85% → 充/放各 sqrt(0.85) ≈ 0.9219
  * - CAPEX 全包两项：PV 3700/kWp、BESS 2000/kWh（含 PCS/线缆/安装/运输）
- * - 停电模型：每月 3 个工作日各停 30 分钟（17:30 起），年停电 18h
+ * - 停电模型：每月 10 个工作日各停 60 分钟（12:00 起），年停电 120h
+ * - 谷充峰放套利：默认开启（谷价时段电网充电，需量保护 = 合同需量×0.95）
  * - 财务：15 年寿命、12% 折现率
  */
 export const DEFAULT_PARAMS: InputParams = {
@@ -49,11 +50,11 @@ export const DEFAULT_PARAMS: InputParams = {
     offPeakPrice_perkWh: 0.748,
     flatPrice_perkWh: 0.748,
     feedInPrice_perkWh: 0,
-    enablePeakArbitrage: false,
+    enablePeakArbitrage: true,
     outage: {
-      eventDaysPerMonth: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
-      eventMinutes: 30,
-      windowStart: '17:30',
+      eventDaysPerMonth: [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
+      eventMinutes: 60,
+      windowStart: '12:00',
     },
   },
 
@@ -92,11 +93,13 @@ export const DEFAULT_PARAMS: InputParams = {
   },
 
   workDays: {
-    // 默认：365 - 24(检修) - 41(雨季停运) = 300 天
+    // 默认：365 - 24(检修) - 41(雨季停运) = 300 个光储运行日
+    // 停运日 = 光储系统停机，工厂按"月均负荷×stoppageLoadFactor"平坦低负荷运行（电网/柴油供电）
     effectiveDaysPerYear: 300,
     rainyMonths: [12, 1, 2, 3],
     rainyOutageDays: [11, 12, 11, 7],
     maintenanceDaysPerMonth: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+    stoppageLoadFactor: 0.1,
   },
 
   greenPremium: {

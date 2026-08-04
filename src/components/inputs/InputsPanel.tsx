@@ -578,6 +578,13 @@ export default function InputsPanel() {
                 </Tag>
               </Form.Item>
             </Col>
+            <Col span={8}>
+              <Form.Item label={t('params.workDaysPanel.stoppageLoadFactor')} help={t('params.workDaysPanel.stoppageLoadFactorHelp')}>
+                <InputNumber value={params.workDays.stoppageLoadFactor ?? 0.1}
+                  onChange={(v) => handleParamChange(['workDays', 'stoppageLoadFactor'], v ?? 0.1)}
+                  min={0} max={1} step={0.05} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>

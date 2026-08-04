@@ -7,13 +7,13 @@ import { useFinanceStore } from '../../store/useFinanceStore';
 import { useReportStore } from '../../store/useReportStore';
 import {
   BrandParams, BrandMap, FALLBACK_BRANDS, loadBrandParams,
-  computeBrandCapex, estimateHWFinance,
+  computeBrandCapex, estimateHWFinance, computeThroughput10Kwh,
 } from '../../utils/brand';
 
 export default function ComparePanel() {
   const { t } = useTranslation();
   const { params } = useParamsStore();
-  const { scenarios } = useSimulationStore();
+  const { scenarios, results: simResults } = useSimulationStore();
   const { results: financeResults } = useFinanceStore();
 
   const [brands, setBrands] = useState<BrandMap>(FALLBACK_BRANDS);
@@ -57,11 +57,25 @@ export default function ComparePanel() {
     );
   }, [financeResults, params.selectedScheme]);
 
+  // 行业方案的仿真结果（10 年吞吐口径用）
+  const industrySim = useMemo(() => {
+    if (!simResults || !industryFinance) return null;
+    return simResults.find((r) => r.scenarioId === industryFinance.scenarioId) ?? null;
+  }, [simResults, industryFinance]);
+
   // HW 方案粗略估算（基于品牌差异做简化调整）
   const hwEstimate = useMemo(() => {
     if (!currentScenario || !industryFinance) return null;
-    return estimateHWFinance(params, currentScenario, industryFinance, brands);
-  }, [brands, currentScenario, industryFinance, params]);
+    return estimateHWFinance(params, currentScenario, industryFinance, brands, industrySim);
+  }, [brands, currentScenario, industryFinance, industrySim, params]);
+
+  // 行业侧 10 年 NPV（与报告口径一致）
+  const industryNpv10 = useMemo(() => {
+    if (!industryFinance) return 0;
+    return industryFinance.cashflow
+      .filter((r) => r.year <= 10)
+      .reduce((s, r) => s + r.discountedCashflow, 0);
+  }, [industryFinance]);
 
   // ─── 对比表数据 ───
   const tableColumns = [
@@ -104,6 +118,24 @@ export default function ComparePanel() {
       hw: formatPct(brands.HW.opexRate),
     },
     {
+      key: 'dod',
+      metric: `${t('compare.dod')} (DOD)`,
+      industry: formatPct(brands.industry_avg.dod),
+      hw: formatPct(brands.HW.dod),
+    },
+    {
+      key: 'operatingDays',
+      metric: t('compare.operatingDays'),
+      industry: `${brands.industry_avg.operatingDaysPerYear}`,
+      hw: `${brands.HW.operatingDaysPerYear}`,
+    },
+    {
+      key: 'sohY10',
+      metric: t('compare.sohY10'),
+      industry: formatPct(brands.industry_avg.sohCurve[9] ?? 0),
+      hw: formatPct(brands.HW.sohCurve[9] ?? 0),
+    },
+    {
       key: 'sohCurve',
       metric: `${t('compare.soh')} (sohCurve, 15Y)`,
       industry: brands.industry_avg.sohCurve.map((v) => v.toFixed(3)).join(' / '),
@@ -131,13 +163,26 @@ export default function ComparePanel() {
         delta: (fmtDelta ?? fmt)(hw - ind),
       });
     };
+    // 行业侧 10 年口径：从现金流表取前 10 年
+    const cf10 = industryFinance.cashflow.filter((r) => r.year <= 10);
+    const revenue10Ind = cf10.reduce((s, r) => s + r.totalRevenue, 0);
+    const npv10Ind = cf10.reduce((s, r) => s + r.discountedCashflow, 0);
+    const opexInd1 = industryFinance.cashflow.find((r) => r.year === 1)?.opex ?? 0;
+    // 行业 10 年吞吐（主引擎 SOH 曲线）
+    const annualDischargeInd = industrySim
+      ? industrySim.monthlyResults.reduce((s, m) => s + (m.totals.bessDischarge_kWh || 0), 0)
+      : 0;
+    const throughput10Ind = computeThroughput10Kwh(annualDischargeInd, params.sohCurve);
+
     pushRow('capex', t('finance.table.capex'), industryFinance.capex, hwEstimate.capex, formatMoney);
-    pushRow('revenue', t('finance.table.revenue'), industryFinance.annualRevenue, hwEstimate.annualRevenue, formatMoney);
-    pushRow('npv', t('finance.table.npv'), industryFinance.npv, hwEstimate.npv, formatMoney);
-    pushRow('irr', t('finance.table.irr'), industryFinance.irr, hwEstimate.irr, (v) => `${(v * 100).toFixed(1)}%`);
+    pushRow('opex', t('compare.opexYear1'), opexInd1, hwEstimate.opexYear1, formatMoney);
+    pushRow('revenue10', t('compare.revenue10'), revenue10Ind, hwEstimate.revenue10, formatMoney);
+    pushRow('npv10', t('compare.npv10'), npv10Ind, hwEstimate.npv10, formatMoney);
     pushRow('payback', t('finance.table.paybackStatic'), industryFinance.paybackStatic, hwEstimate.paybackStatic, (v) => `${v.toFixed(2)} ${t('common.years')}`);
+    pushRow('throughput', t('compare.throughput10'), throughput10Ind, hwEstimate.throughput10,
+      (v) => `${(v / 1000).toFixed(0)} MWh`, (v) => `${(v / 1000).toFixed(1)} MWh`);
     return rows;
-  }, [industryFinance, hwEstimate]);
+  }, [industryFinance, hwEstimate, industrySim, params.sohCurve, t]);
 
   return (
     <div>
@@ -194,10 +239,10 @@ export default function ComparePanel() {
               </Col>
               <Col span={6}>
                 <Statistic
-                  title={`${t('finance.table.npv')} Δ`}
-                  value={hwEstimate!.npv - industryFinance.npv}
+                  title={`${t('compare.npv10')} Δ`}
+                  value={hwEstimate!.npv10 - industryNpv10}
                   precision={0}
-                  prefix={hwEstimate!.npv - industryFinance.npv >= 0 ? '+' : ''}
+                  prefix={hwEstimate!.npv10 - industryNpv10 >= 0 ? '+' : ''}
                 />
               </Col>
               <Col span={6}>

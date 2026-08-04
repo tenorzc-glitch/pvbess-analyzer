@@ -54,7 +54,7 @@ export default function FinancePanel() {
   // 最优方案对应的容量配置（用于 HW 对比估算）
   const bestScenario = scenarios?.find(s => s.id === bestResult.scenarioId) ?? null;
   const hwEstimate = reportCompareHW && bestScenario
-    ? estimateHWFinance(params, bestScenario, bestResult, brands)
+    ? estimateHWFinance(params, bestScenario, bestResult, brands, bestSimResult)
     : null;
 
   // ─── NPV 对比柱状图 ───

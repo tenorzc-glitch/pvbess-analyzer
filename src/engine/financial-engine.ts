@@ -25,6 +25,18 @@ export function computeFinance(
   // 2. 首年节省（含绿电溢价、扣除断电损失）
   const year1Revenue = computeAnnualSaving(simResult, baseline, params);
 
+  // 2b. 首年节省四分量分解：a) PV 自用 + b) 储能套利 + c) 需量差 + d) 柴油差
+  // 恒等式：a+b = baseline.annualGridCost − sim.annual.gridCost（逐时段口径，精确对账）
+  const savingsBreakdown = {
+    pvSelfUse: simResult.annual.pvSelfUseValue || 0,
+    arbitrage: (simResult.annual.dischargeValue || 0) - (simResult.annual.gridChargeCost || 0),
+    demand: baseline.annualDemandCharge - simResult.annual.demandChargeCost,
+    diesel: baseline.annualDieselCost - simResult.annual.dieselCost,
+    total: 0,
+  };
+  savingsBreakdown.total = savingsBreakdown.pvSelfUse + savingsBreakdown.arbitrage
+    + savingsBreakdown.demand + savingsBreakdown.diesel;
+
   // 3. 首年 OPEX
   const year1Opex = computeAnnualOpex(params, scenario, pvCapex, bessCapex, 1, simResult);
 
@@ -134,6 +146,7 @@ export function computeFinance(
     lcoe,
     benefitCostRatio,
     cashflow,
+    savingsBreakdown,
     baseline: {
       annualGridCost: baseline.annualGridCost,
       annualDieselCost: baseline.annualDieselCost,

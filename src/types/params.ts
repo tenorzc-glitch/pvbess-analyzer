@@ -41,7 +41,7 @@ export interface InputParams {
     /** 电网停电模型（引擎级注入，不依赖 profile 的 gridAvailable） */
     outage: {
       eventDaysPerMonth: number[]; // [12] 每月发生停电的工作日数
-      eventMinutes: number;        // 每次停电时长（分钟），<=30
+      eventMinutes: number;        // 每次停电时长（分钟），<=60
       windowStart: string;         // 停电窗口起始时刻 'HH:MM'
     };
   };
@@ -83,10 +83,11 @@ export interface InputParams {
 
   /** 有效工作日配置 */
   workDays: {
-    effectiveDaysPerYear: number;  // 年有效工作天数，默认 300
+    effectiveDaysPerYear: number;  // 年有效工作天数，默认 300（仅 UI 参考，引擎按月度数组推导）
     rainyMonths: number[];         // 雨季月份 [1-12]，默认 [12, 1, 2, 3]
     rainyOutageDays: number[];     // 各雨季月份停运天数
     maintenanceDaysPerMonth: number[]; // 每月检修天数 [12]
+    stoppageLoadFactor: number;    // 停运日负荷系数：停运=光储停机，工厂按"月均负荷×该系数"平坦运行（电网/柴油供电），默认 0.1
   };
 
   /** 绿电溢价配置 */

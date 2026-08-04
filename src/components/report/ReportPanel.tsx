@@ -19,10 +19,11 @@ import { useParamsStore } from '../../store/useParamsStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { useReportStore } from '../../store/useReportStore';
 import { scenarioDisplayName } from '../../utils/scenario-name';
-import { BrandMap, FALLBACK_BRANDS, loadBrandParams, estimateHWFinance } from '../../utils/brand';
+import { BrandMap, FALLBACK_BRANDS, loadBrandParams, estimateHWFinance, computeThroughput10Kwh } from '../../utils/brand';
 import { exportBlocksPDF } from '../../utils/pdf-blocks';
 import {
   buildDispatchOption, buildMonthlySavingOption, buildSankeyOption, buildCumCashflowOption,
+  computeTenYearMetrics,
 } from '../../utils/report-charts';
 
 const { Title, Text } = Typography;
@@ -41,7 +42,7 @@ export default function ReportPanel() {
   const { id } = useParams<{ id: string }>();
   const MONTHS = (t('results.months', { returnObjects: true }) as string[]) || ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
-  const { results, scenarios, isRunning } = useSimulationStore();
+  const { results, scenarios, isRunning, baselines } = useSimulationStore();
   const { results: finResults } = useFinanceStore();
   const { params } = useParamsStore();
   const project = useProjectStore((s) => s.projects.find((p) => p.id === id));
@@ -75,7 +76,7 @@ export default function ReportPanel() {
   const scen = scenarios.find((s) => s.id === sid) ?? null;
   const monthResult = sim?.monthlyResults?.find((m) => m.month === repMonth);
   // 华为对比：打开 Switch（报告页或对比页均可，共享 useReportStore）→ 报告含华为章（需求②）
-  const hw = includeHW && scen && fin ? estimateHWFinance(params, scen, fin, brands) : null;
+  const hw = includeHW && scen && fin ? estimateHWFinance(params, scen, fin, brands, sim) : null;
 
   const sym = params.currency.symbol;
   const today = new Date().toISOString().slice(0, 10);
@@ -118,28 +119,49 @@ export default function ReportPanel() {
   const capexBESS = scen.bessCapacity_kWh * params.capex.bessCost_perkWh;
   // cashflow[0] 是 Y0（-CAPEX），"首年"取 year===1 行
   const firstYear = fin.cashflow.find((r) => r.year === 1) ?? fin.cashflow[0];
+  // 投资收益 10 年口径（用户拍板：NPV/图/表全 10 年）
+  const tenYear = computeTenYearMetrics(fin, annual.pv_kWh, params.financial.discountRate);
 
-  // 节省明细表：基线 vs 方案
+  // 节省明细表：部署光储前 vs 部署光储后（费用对比）
   const savingsRows = [
-    { key: 'grid', label: t('report.savings.gridEnergy'), baseline: fin.baseline.annualGridCost, project: annual.gridCost },
-    { key: 'demand', label: t('report.savings.demand'), baseline: fin.baseline.annualDemandCharge, project: annual.demandChargeCost },
-    { key: 'diesel', label: t('report.savings.diesel'), baseline: fin.baseline.annualDieselCost, project: annual.dieselCost },
-    { key: 'total', label: t('report.savings.total'), baseline: fin.baseline.annualTotal, project: annual.totalEnergyCost },
+    { key: 'grid', label: t('report.savings.gridEnergy'), before: fin.baseline.annualGridCost, after: annual.gridCost },
+    { key: 'demand', label: t('report.savings.demand'), before: fin.baseline.annualDemandCharge, after: annual.demandChargeCost },
+    { key: 'diesel', label: t('report.savings.diesel'), before: fin.baseline.annualDieselCost, after: annual.dieselCost },
+    { key: 'total', label: t('report.savings.total'), before: fin.baseline.annualTotal, after: annual.totalEnergyCost },
   ];
   const savingsColumns = [
     { title: t('common.metric'), dataIndex: 'label', key: 'label' },
     {
-      title: t('report.savings.baseline'), dataIndex: 'baseline', key: 'baseline', align: 'right' as const,
+      title: t('report.savings.before'), dataIndex: 'before', key: 'before', align: 'right' as const,
       render: (v: number) => `${fmtMoney(v)} ${sym}`,
     },
     {
-      title: t('report.savings.project'), dataIndex: 'project', key: 'project', align: 'right' as const,
+      title: t('report.savings.after'), dataIndex: 'after', key: 'after', align: 'right' as const,
       render: (v: number) => `${fmtMoney(v)} ${sym}`,
     },
     {
       title: t('report.savings.saving'), key: 'saving', align: 'right' as const,
-      render: (_: unknown, r: { baseline: number; project: number }) => (
-        <Text strong style={{ color: '#389e0d' }}>{fmtMoney(r.baseline - r.project)} {sym}</Text>
+      render: (_: unknown, r: { before: number; after: number }) => (
+        <Text strong style={{ color: '#389e0d' }}>{fmtMoney(r.before - r.after)} {sym}</Text>
+      ),
+    },
+  ];
+
+  // 节省四分量分解表（恒等式：a+b = 电量电费差，a+b+c+d = 总节省）
+  const bd = fin.savingsBreakdown;
+  const breakdownRows = [
+    { key: 'a', label: t('report.savings.catPvSelfUse'), value: bd.pvSelfUse },
+    { key: 'b', label: t('report.savings.catArbitrage'), value: bd.arbitrage },
+    { key: 'c', label: t('report.savings.catDemand'), value: bd.demand },
+    { key: 'd', label: t('report.savings.catDiesel'), value: bd.diesel },
+    { key: 'total', label: t('report.savings.total'), value: bd.total },
+  ];
+  const breakdownColumns = [
+    { title: t('report.savings.breakdownTitle'), dataIndex: 'label', key: 'label' },
+    {
+      title: t('report.savings.saving'), dataIndex: 'value', key: 'value', align: 'right' as const,
+      render: (v: number, r: { key: string }) => (
+        <Text strong={r.key === 'total'} style={{ color: '#389e0d' }}>{fmtMoney(v)} {sym}</Text>
       ),
     },
   ];
@@ -223,9 +245,9 @@ export default function ReportPanel() {
             </div>
             <div>
               <Row gutter={16} style={{ textAlign: 'center', marginBottom: 60 }}>
-                <Col span={6}><Statistic title="NPV" value={fmtMoney(fin.npv)} suffix={sym} /></Col>
-                <Col span={6}><Statistic title="IRR" value={(fin.irr * 100).toFixed(1)} suffix="%" /></Col>
-                <Col span={6}><Statistic title={t('finance.table.paybackStatic')} value={fin.paybackStatic.toFixed(1)} suffix={t('common.years')} /></Col>
+                <Col span={6}><Statistic title={t('report.invest.npv10')} value={fmtMoney(tenYear.npv10)} suffix={sym} /></Col>
+                <Col span={6}><Statistic title={t('report.invest.pbp')} value={fin.paybackStatic.toFixed(1)} suffix={t('common.years')} /></Col>
+                <Col span={6}><Statistic title={t('report.invest.lcoe10')} value={tenYear.lcoe10.toFixed(2)} suffix={`${sym}/kWh`} /></Col>
                 <Col span={6}><Statistic title={t('report.savings.firstYearNet')} value={fmtMoney(firstYear?.netCashflow ?? 0)} suffix={sym} /></Col>
               </Row>
               <div style={{ textAlign: 'center', color: '#595959', lineHeight: 2 }}>
@@ -263,6 +285,11 @@ export default function ReportPanel() {
                 { key: 'cb', label: t('report.params.capexUnitBESS'), children: `${params.capex.bessCost_perkWh} ${sym}/kWh` },
               ]}
             />
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {t('report.params.pvNote', { kwp: scen.pvCapacity_kWp, area: Math.round(scen.pvCapacity_kWp * 10).toLocaleString() })}
+              </Text>
+            </div>
           </section>
 
           {/* ③ 运行策略 */}
@@ -271,11 +298,12 @@ export default function ReportPanel() {
             <ul style={{ lineHeight: 1.9, paddingLeft: 20, marginTop: 0 }}>
               <li>{t('report.strategy.s1')}</li>
               <li>{t('report.strategy.s2')}</li>
-              <li>{t('report.strategy.s3', { demand: params.grid.contractDemand_kW })}</li>
+              <li>{t('report.strategy.s3', { demand: params.grid.contractDemand_kW, threshold: Math.round(params.grid.contractDemand_kW * 0.5) })}</li>
+              <li>{t('report.strategy.s9')}</li>
               <li>{t('report.strategy.s4', { start: params.grid.outage.windowStart, minutes: params.grid.outage.eventMinutes })}</li>
               <li>{t('report.strategy.s5')}</li>
               <li>{t('report.strategy.s6', { min: `${(params.bess.socMin * 100).toFixed(0)}%`, max: `${(params.bess.socMax * 100).toFixed(0)}%` })}</li>
-              <li>{t('report.strategy.s7')}</li>
+              <li>{t('report.strategy.s7', { factor: Math.round((params.workDays.stoppageLoadFactor ?? 0.1) * 100) })}</li>
               <li>{t('report.strategy.s8', { peak: `${params.grid.peakPrice_perkWh} ${sym}`, offpeak: `${params.grid.offPeakPrice_perkWh} ${sym}` })}</li>
             </ul>
             <ReactECharts
@@ -294,6 +322,13 @@ export default function ReportPanel() {
               columns={savingsColumns}
               style={{ marginBottom: 12 }}
             />
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={breakdownRows}
+              columns={breakdownColumns}
+              style={{ marginBottom: 12 }}
+            />
             {(includeGreen && fin.greenPremium) && (
               <div>+ {t('report.savings.greenRow')}：{fmtMoney(fin.greenPremium.annualPremium)} {sym}/{t('common.perYear')}</div>
             )}
@@ -306,7 +341,7 @@ export default function ReportPanel() {
               <Col span={8}><Statistic title={t('report.savings.firstYearNet')} value={fmtMoney(firstYear?.netCashflow ?? 0)} suffix={sym} /></Col>
             </Row>
             <ReactECharts
-              option={buildMonthlySavingOption(t, sim.monthlyResults, params, MONTHS)}
+              option={buildMonthlySavingOption(t, sim.monthlyResults, params, MONTHS, baselines?.[0])}
               style={{ height: 300 }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>{t('report.savings.note')}</Text>
@@ -330,24 +365,21 @@ export default function ReportPanel() {
               <Col span={8}><Statistic title={t('report.invest.capexTotal')} value={fmtMoney(fin.capex)} suffix={sym} /></Col>
             </Row>
             <Row gutter={16} style={{ textAlign: 'center', marginBottom: 12 }}>
-              <Col span={4}><Statistic title="NPV" value={fmtMoney(fin.npv)} /></Col>
-              <Col span={4}><Statistic title="IRR" value={`${(fin.irr * 100).toFixed(1)}%`} /></Col>
-              <Col span={4}><Statistic title={t('finance.table.paybackStatic')} value={fin.paybackStatic.toFixed(2)} /></Col>
-              <Col span={4}><Statistic title={t('finance.table.paybackDynamic')} value={fin.paybackDynamic.toFixed(2)} /></Col>
-              <Col span={4}><Statistic title="LCOE" value={fin.lcoe.toFixed(2)} /></Col>
-              <Col span={4}><Statistic title="B/C" value={fin.benefitCostRatio.toFixed(2)} /></Col>
+              <Col span={8}><Statistic title={t('report.invest.npv10')} value={fmtMoney(tenYear.npv10)} suffix={sym} /></Col>
+              <Col span={8}><Statistic title={t('report.invest.pbp')} value={fin.paybackStatic.toFixed(2)} suffix={t('common.years')} /></Col>
+              <Col span={8}><Statistic title={t('report.invest.lcoe10')} value={tenYear.lcoe10.toFixed(2)} suffix={`${sym}/kWh`} /></Col>
             </Row>
-            <ReactECharts option={buildCumCashflowOption(t, fin)} style={{ height: 300 }} />
-            <Title level={5} style={{ marginTop: 16 }}>{t('report.invest.cashflowTable')}</Title>
+            <ReactECharts option={buildCumCashflowOption(t, fin, 10)} style={{ height: 300 }} />
+            <Title level={5} style={{ marginTop: 16 }}>{t('report.invest.cashflowTable10')}</Title>
             <Table
               size="small"
               pagination={false}
-              dataSource={fin.cashflow.map((r) => ({ ...r, key: r.year }))}
+              dataSource={fin.cashflow.filter((r) => r.year <= 10).map((r) => ({ ...r, key: r.year }))}
               columns={cashflowColumns}
             />
           </section>
 
-          {/* ⑦ 华为储能额外收益（includeHW 时；对比页 Switch 共享同一 store，需求②） */}
+          {/* ⑦ 华为储能额外收益（includeHW 时；对比页 Switch 共享同一 store，需求②；无能量流，10 年口径） */}
           {hw && (
             <section data-pdf-block style={{ marginTop: 24 }}>
               {secTitle('report.sec.hw')}
@@ -357,17 +389,19 @@ export default function ReportPanel() {
                 const pct = (v: number) => (v * 100).toFixed(0);
                 const indLoss = (1 - ind.rte) * 100;
                 const hwLoss = (1 - hwB.rte) * 100;
-                const lossCut = ((indLoss - hwLoss) / indLoss) * 100;
-                const annualCharge = sim.monthlyResults.reduce((s, m) => s + m.totals.bessCharge_kWh, 0);
-                const extraKwh = annualCharge * (hwB.rte - ind.rte);
-                const sohEnd = (arr: number[]) => arr[arr.length - 1] ?? 0;
+                const sohY10 = (arr: number[]) => arr[9] ?? 0;
+                // 行业侧 10 年口径与放电吞吐
+                const opexInd1 = firstYear?.opex ?? 0;
+                const annualDischarge = sim.monthlyResults.reduce((s, m) => s + (m.totals.bessDischarge_kWh || 0), 0);
+                const throughput10Ind = computeThroughput10Kwh(annualDischarge, params.sohCurve);
 
                 const paramRows = [
                   { key: 'rte', metric: `${t('compare.rte')} (RTE)`, industry: `${pct(ind.rte)}%`, hw: `${pct(hwB.rte)}%` },
-                  { key: 'rteSplit', metric: `${t('compare.rteSplit')} (√RTE)`, industry: `${(Math.sqrt(ind.rte) * 100).toFixed(1)}%`, hw: `${(Math.sqrt(hwB.rte) * 100).toFixed(1)}%` },
+                  { key: 'dod', metric: t('compare.dod'), industry: `${pct(ind.dod)}%`, hw: `${pct(hwB.dod)}%` },
+                  { key: 'days', metric: t('compare.operatingDays'), industry: `${ind.operatingDaysPerYear}`, hw: `${hwB.operatingDaysPerYear}` },
+                  { key: 'soh10', metric: t('compare.sohY10'), industry: `${pct(sohY10(ind.sohCurve))}%`, hw: `${pct(sohY10(hwB.sohCurve))}%` },
+                  { key: 'opex', metric: t('compare.opexYear1'), industry: `${fmtMoney(opexInd1)} ${sym}`, hw: `${fmtMoney(hw.opexYear1)} ${sym}` },
                   { key: 'cost', metric: t('compare.fullPackageCost'), industry: `${fmtMoney(ind.costPerKWh)} ${sym}/kWh`, hw: `${fmtMoney(hwB.costPerKWh)} ${sym}/kWh` },
-                  { key: 'opex', metric: `OPEX ${t('common.metric')}`, industry: `${(ind.opexRate * 100).toFixed(1)}%`, hw: `${(hwB.opexRate * 100).toFixed(1)}%` },
-                  { key: 'soh', metric: t('report.hw.sohEnd'), industry: `${pct(sohEnd(ind.sohCurve))}%`, hw: `${pct(sohEnd(hwB.sohCurve))}%` },
                 ];
                 const brandCols = [
                   { title: t('common.metric'), dataIndex: 'metric', key: 'metric' },
@@ -376,9 +410,9 @@ export default function ReportPanel() {
                 ];
                 const finRows = [
                   { key: 'capex', metric: t('finance.table.capex'), industry: fmtMoney(fin.capex), hw: fmtMoney(hw.capex), delta: fmtMoney(hw.capex - fin.capex) },
-                  { key: 'rev', metric: t('finance.table.revenue'), industry: fmtMoney(fin.annualRevenue), hw: fmtMoney(hw.annualRevenue), delta: fmtMoney(hw.annualRevenue - fin.annualRevenue) },
-                  { key: 'npv', metric: 'NPV', industry: fmtMoney(fin.npv), hw: fmtMoney(hw.npv), delta: fmtMoney(hw.npv - fin.npv) },
-                  { key: 'irr', metric: 'IRR', industry: `${(fin.irr * 100).toFixed(1)}%`, hw: `${(hw.irr * 100).toFixed(1)}%`, delta: `${((hw.irr - fin.irr) * 100).toFixed(1)} pp` },
+                  { key: 'opex', metric: t('compare.opexYear1'), industry: fmtMoney(opexInd1), hw: fmtMoney(hw.opexYear1), delta: fmtMoney(hw.opexYear1 - opexInd1) },
+                  { key: 'rev10', metric: t('compare.revenue10'), industry: fmtMoney(tenYear.revenue10), hw: fmtMoney(hw.revenue10), delta: fmtMoney(hw.revenue10 - tenYear.revenue10) },
+                  { key: 'npv10', metric: t('compare.npv10'), industry: fmtMoney(tenYear.npv10), hw: fmtMoney(hw.npv10), delta: fmtMoney(hw.npv10 - tenYear.npv10) },
                   { key: 'pbp', metric: t('finance.table.paybackStatic'), industry: fin.paybackStatic.toFixed(2), hw: hw.paybackStatic.toFixed(2), delta: (hw.paybackStatic - fin.paybackStatic).toFixed(2) },
                 ];
                 const finCols = [
@@ -387,6 +421,9 @@ export default function ReportPanel() {
                   { title: t('compare.hw'), dataIndex: 'hw', key: 'hw', align: 'right' as const },
                   { title: 'Δ', dataIndex: 'delta', key: 'delta', align: 'right' as const,
                     render: (v: string) => <Text strong style={{ color: '#722ed1' }}>{v}</Text> },
+                ];
+                const thrRows = [
+                  { key: 'thr', metric: t('compare.throughput10'), industry: `${(throughput10Ind / 1000).toFixed(0)} MWh`, hw: `${(hw.throughput10 / 1000).toFixed(0)} MWh`, delta: `+${((hw.throughput10 - throughput10Ind) / 1000).toFixed(0)} MWh` },
                 ];
 
                 return (
@@ -397,18 +434,18 @@ export default function ReportPanel() {
                     <Title level={5}>{t('report.hw.strategyDiffTitle')}</Title>
                     <ul style={{ lineHeight: 1.9, paddingLeft: 20 }}>
                       <li>{t('report.hw.d1', { hw: pct(hwB.rte), ind: pct(ind.rte), indLoss: indLoss.toFixed(0), hwLoss: hwLoss.toFixed(0) })}</li>
-                      <li>{t('report.hw.d2', { hwSoh: pct(sohEnd(hwB.sohCurve)), indSoh: pct(sohEnd(ind.sohCurve)) })}</li>
-                      <li>{t('report.hw.d3', { hwOpex: (hwB.opexRate * 100).toFixed(1), indOpex: (ind.opexRate * 100).toFixed(1), hwCost: `${fmtMoney(hwB.costPerKWh)} ${sym}/kWh`, indCost: `${fmtMoney(ind.costPerKWh)} ${sym}/kWh` })}</li>
+                      <li>{t('report.hw.d2', { hwDod: pct(hwB.dod), indDod: pct(ind.dod), hwDays: hwB.operatingDaysPerYear, indDays: ind.operatingDaysPerYear })}</li>
+                      <li>{t('report.hw.d3', { hwSoh: pct(sohY10(hwB.sohCurve)), indSoh: pct(sohY10(ind.sohCurve)) })}</li>
                     </ul>
+
+                    <Title level={5}>{t('report.hw.throughputTitle')}</Title>
+                    <Table size="small" pagination={false} dataSource={thrRows} columns={finCols} style={{ marginBottom: 12 }} />
 
                     <Title level={5}>{t('report.hw.savingTitle')}</Title>
                     <Table size="small" pagination={false} dataSource={finRows} columns={finCols} style={{ marginBottom: 12 }} />
 
-                    <Title level={5}>{t('report.hw.energyTitle')}</Title>
-                    <Text>{t('report.hw.energyText', { charge: annualCharge.toFixed(0), kwh: extraKwh.toFixed(0), ind: pct(ind.rte), hw: pct(hwB.rte), pct: lossCut.toFixed(0) })}</Text>
-
                     <div style={{ marginTop: 12 }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{t('excel.hwNote')}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{t('report.hw.financeNote')}</Text>
                     </div>
                   </>
                 );
