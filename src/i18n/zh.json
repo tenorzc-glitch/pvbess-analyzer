@@ -283,10 +283,14 @@
     "payback": "静态回收期",
     "bcRatio": "B/C Ratio",
     "npvChart": "NPV 对比",
-    "cashflowChart": "累计折现现金流",
+    "cashflowChart": "累计现金流（静态/折现）",
     "chart": {
       "npv": "净现值",
-      "cumulativeCashflow": "累计现金流"
+      "cumulativeCashflow": "累计现金流",
+      "cumStatic": "累计现金流（未折现）",
+      "cumDcf": "累计现金流（折现）",
+      "paybackStaticMark": "静态回本 {{y}} 年",
+      "paybackDynamicMark": "动态回本 {{y}} 年"
     },
     "table": {
       "capex": "CAPEX",

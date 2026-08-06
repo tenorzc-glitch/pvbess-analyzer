@@ -230,27 +230,70 @@ export function buildSankeyOption(
   };
 }
 
-/** 累计折现现金流曲线（含回收点 0 轴标线；years 限定口径，如报告用 10 年） */
+/**
+ * 累计现金流双线对比：未折现（静态口径，零交叉=静态回收期）+ 折现（动态口径）。
+ * 双回收点用垂直虚线 + 零线交叉圆点标注，一眼读出"X.XX 年回本"。
+ * （years 限定口径，如报告用 10 年）
+ */
 export function buildCumCashflowOption(t: TFunction, fin: FinanceResult, years?: number) {
   const rows = years ? fin.cashflow.filter((r) => r.year <= years) : fin.cashflow;
+  // 未折现累计 = netCashflow 前缀和（Y0 即 -CAPEX，与引擎口径一致）
+  let acc = 0;
+  const cumStatic = rows.map((r) => +(acc += r.netCashflow).toFixed(0));
+  const maxYear = rows[rows.length - 1]?.year ?? 0;
+  const valid = (p: number) => Number.isFinite(p) && p >= 0 && p <= maxYear;
+  const pS = valid(fin.paybackStatic) ? fin.paybackStatic : null;
+  const pD = valid(fin.paybackDynamic) ? fin.paybackDynamic : null;
+
+  // 零线交叉圆点 + 顶部标签（回收点文字）
+  const mkPoint = (pbp: number | null, color: string, label: string) =>
+    pbp === null
+      ? undefined
+      : {
+          symbol: 'circle', symbolSize: 11,
+          itemStyle: { color, borderColor: '#fff', borderWidth: 2 },
+          label: { position: 'top' as const, distance: 8, fontSize: 11, color, fontWeight: 700 as const, formatter: () => label },
+          data: [{ coord: [+pbp.toFixed(2), 0] }],
+        };
+  // 垂直虚线（可选附带红色零轴参考线，无文字标签，避免右缘裁切）
+  const mkLine = (pbp: number | null, color: string, withZero = false) => ({
+    silent: true, symbol: 'none',
+    data: [
+      ...(withZero ? [{ yAxis: 0, lineStyle: { color: '#ff4d4f', type: 'dashed' as const } }] : []),
+      ...(pbp === null ? [] : [{ xAxis: +pbp.toFixed(2) }]),
+    ],
+    lineStyle: { color, type: 'dashed' as const, width: 1.5 },
+    label: { show: false },
+  });
+
   return {
     title: { text: `${t('params.scheme')} ${fin.scenarioId} ${t('finance.cashflowChart')}${years ? ` (${years}Y)` : ''}`, left: 'center' },
     tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, data: [t('finance.chart.cumStatic'), t('finance.chart.cumDcf')] },
     xAxis: { type: 'category', data: rows.map(r => `Y${r.year}`) },
     yAxis: { type: 'value', name: t('finance.chart.cumulativeCashflow') },
     series: [
       {
-        name: t('finance.cashflowChart'),
+        name: t('finance.chart.cumStatic'),
+        type: 'line',
+        data: cumStatic,
+        lineStyle: { color: '#389e0d', width: 2 }, itemStyle: { color: '#389e0d' },
+        symbol: 'circle', symbolSize: 6,
+        markPoint: mkPoint(pS, '#389e0d', t('finance.chart.paybackStaticMark', { y: (pS ?? 0).toFixed(2) })),
+        markLine: mkLine(pS, '#389e0d', true),
+      },
+      {
+        name: t('finance.chart.cumDcf'),
         type: 'line',
         data: rows.map(r => r.cumulativeDiscountedCF),
-        markLine: {
-          data: [{ yAxis: 0, label: { formatter: t('finance.paybackPoint') } }],
-          lineStyle: { color: '#ff4d4f', type: 'dashed' },
-        },
+        lineStyle: { color: '#1677ff', width: 2 }, itemStyle: { color: '#1677ff' },
+        symbol: 'circle', symbolSize: 6,
         areaStyle: { color: 'rgba(22,119,255,0.1)' },
+        markPoint: mkPoint(pD, '#1677ff', t('finance.chart.paybackDynamicMark', { y: (pD ?? 0).toFixed(2) })),
+        markLine: mkLine(pD, '#1677ff'),
       },
     ],
-    grid: { left: 60, right: 20, top: 40, bottom: 30 },
+    grid: { left: 60, right: 40, top: 40, bottom: 48 },
   };
 }
 

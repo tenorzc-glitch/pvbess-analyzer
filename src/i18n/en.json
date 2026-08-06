@@ -283,10 +283,14 @@
     "payback": "Payback",
     "bcRatio": "B/C Ratio",
     "npvChart": "NPV Comparison",
-    "cashflowChart": "Cumulative DCF",
+    "cashflowChart": "Cumulative Cash Flow (Static/DCF)",
     "chart": {
       "npv": "NPV",
-      "cumulativeCashflow": "Cumulative Cash Flow"
+      "cumulativeCashflow": "Cumulative Cash Flow",
+      "cumStatic": "Cumulative CF (undiscounted)",
+      "cumDcf": "Cumulative CF (discounted)",
+      "paybackStaticMark": "Static payback {{y}} yrs",
+      "paybackDynamicMark": "Dynamic payback {{y}} yrs"
     },
     "table": {
       "capex": "CAPEX",
