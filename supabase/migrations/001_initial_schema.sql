@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-  theme TEXT DEFAULT 'light' CHECK (theme IN ('light', 'dark')),
-  language TEXT DEFAULT 'zh' CHECK (language IN ('zh', 'en')),
+  theme TEXT DEFAULT 'dark' CHECK (theme IN ('light', 'dark')),
+  language TEXT DEFAULT 'en' CHECK (language IN ('zh', 'en')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -25,8 +25,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (NEW.id, NEW.email, 'user');
+  INSERT INTO public.profiles (id, email, role, theme, language)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    'user',
+    COALESCE(NEW.raw_user_meta_data->>'theme', 'dark'),
+    COALESCE(NEW.raw_user_meta_data->>'language', 'en')
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

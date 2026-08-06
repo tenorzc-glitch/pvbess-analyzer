@@ -48,8 +48,9 @@ function getStoredUser(): AuthUser | null {
         id: u.id || 'local-' + Date.now(),
         email: u.email || '',
         role: u.role === 'admin' ? 'admin' : 'user',
-        theme: u.theme === 'dark' ? 'dark' : 'light',
-        language: u.language === 'en' ? 'en' : 'zh',
+        // 缺省（从未设置过偏好）时默认深色 + 英语；已存储的显式选择保持不变
+        theme: u.theme === 'light' ? 'light' : 'dark',
+        language: u.language === 'zh' ? 'zh' : 'en',
       };
     }
   } catch { /* ignore */ }
@@ -62,7 +63,7 @@ function saveUser(user: AuthUser) {
 
 /** 从 Supabase session + profiles 行构造 AuthUser */
 async function fetchProfile(uid: string, email: string): Promise<AuthUser> {
-  if (!supabase) return { id: uid, email, role: 'user', theme: 'light', language: 'zh' };
+  if (!supabase) return { id: uid, email, role: 'user', theme: 'dark', language: 'en' };
   try {
     const { data } = await supabase.from('profiles').select('role, theme, language').eq('id', uid).single();
     if (data) {
@@ -70,12 +71,12 @@ async function fetchProfile(uid: string, email: string): Promise<AuthUser> {
         id: uid,
         email,
         role: data.role === 'admin' ? 'admin' : 'user',
-        theme: data.theme === 'dark' ? 'dark' : 'light',
-        language: data.language === 'en' ? 'en' : 'zh',
+        theme: data.theme === 'light' ? 'light' : 'dark',
+        language: data.language === 'zh' ? 'zh' : 'en',
       };
     }
   } catch { /* profile 不存在时 trigger 会自动创建，下次登录可读到 */ }
-  return { id: uid, email, role: 'user', theme: 'light', language: 'zh' };
+  return { id: uid, email, role: 'user', theme: 'dark', language: 'en' };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -122,8 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: 'local-' + Date.now(),
         email: email || 'user@local',
         role: password === ADMIN_PASSWORD ? 'admin' : 'user',
-        theme: localStorage.getItem('pv-bess-theme') === 'dark' ? 'dark' : 'light',
-        language: localStorage.getItem('pv-bess-language') === 'en' ? 'en' : 'zh',
+        theme: localStorage.getItem('pv-bess-theme') === 'light' ? 'light' : 'dark',
+        language: localStorage.getItem('pv-bess-language') === 'zh' ? 'zh' : 'en',
       };
       setUser(u);
       saveUser(u);
@@ -138,11 +139,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!isSupabaseConfigured() || !supabase) {
       return { error: i18n.t('auth.registerOffline') };
     }
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    // options.data 随用户元数据下发，003 迁移后的 trigger 会据此直接创建 深色+英语 档案
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { theme: 'dark', language: 'en' } },
+    });
     if (error) return { error: error.message };
     // 如果邮箱确认已关闭，用户可直接登录；否则提示查收邮件
     if (data.user && !data.session) {
       return { info: i18n.t('auth.registerSuccessEmail') };
+    }
+    // 新用户初始偏好兜底：DB 未执行 003 时由 app 侧写入 深色+英语
+    if (data.user && data.session) {
+      try {
+        await supabase.from('profiles').update({
+          theme: 'dark',
+          language: 'en',
+          updated_at: new Date().toISOString(),
+        }).eq('id', data.user.id);
+      } catch { /* 失败不阻断注册 */ }
+      const u: AuthUser = { id: data.user.id, email, role: 'user', theme: 'dark', language: 'en' };
+      setUser(u);
+      saveUser(u);
     }
     return { info: i18n.t('auth.registerSuccess') };
   }, []);

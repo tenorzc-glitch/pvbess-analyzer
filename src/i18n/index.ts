@@ -12,12 +12,13 @@ i18n
       zh: { translation: zh },
       en: { translation: en },
     },
-    fallbackLng: 'zh',
+    fallbackLng: 'en',
     interpolation: {
       escapeValue: false,
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      // 只看用户显式选择（localStorage），首访默认英语（fallbackLng）
+      order: ['localStorage'],
       caches: ['localStorage'],
     },
   });

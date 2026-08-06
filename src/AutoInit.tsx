@@ -6,6 +6,9 @@ import { useAuth } from './hooks/useAuth';
 import { ProfileData } from './types';
 import i18n from './i18n';
 
+/** 演示项目的历史名称（用于自动重命名迁移） */
+const LEGACY_DEMO_NAMES = ['巴西咖啡农场 500kWp', 'Brazil Coffee Farm 500kWp'];
+
 /** 初始化：加载项目列表 + profile 数据 */
 export default function AutoInit() {
   const navigate = useNavigate();
@@ -16,8 +19,8 @@ export default function AutoInit() {
   useEffect(() => {
     loadProjects().then(() => {
       const { projects, cloudMode } = useProjectStore.getState();
-      // 离线模式且无任何项目时，创建默认演示项目
       if (!cloudMode && projects.length === 0) {
+        // 离线模式且无任何项目时，创建默认演示项目
         const project = {
           id: 'default-brazil',
           name: i18n.t('common.demoProjectName'),
@@ -28,6 +31,12 @@ export default function AutoInit() {
         };
         useProjectStore.getState().addProject(project);
         navigate('/project/default-brazil');
+      } else {
+        // 旧名迁移：演示项目若还叫旧名字（中英文历史文案），统一改为新名称
+        const demo = projects.find((p) => p.id === 'default-brazil');
+        if (demo && LEGACY_DEMO_NAMES.includes(demo.name)) {
+          useProjectStore.getState().updateProject('default-brazil', { name: i18n.t('common.demoProjectName') });
+        }
       }
     });
 
@@ -36,7 +45,7 @@ export default function AutoInit() {
       setProfile(builtinProfile());
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, i18n.language]);
 
   return null;
 }

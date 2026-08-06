@@ -11,8 +11,9 @@ import i18n from './i18n';
 
 function ThemedApp() {
   const { user } = useAuth();
-  const isDark = user?.theme === 'dark';
-  const isEnglish = user?.language === 'en';
+  // 未登录/无档案时默认：深色 + 英语（登录页同样生效）
+  const isDark = (user?.theme ?? 'dark') === 'dark';
+  const isEnglish = (user?.language ?? 'en') === 'en';
 
   // 用户语言变化时同步 i18n
   useEffect(() => {
