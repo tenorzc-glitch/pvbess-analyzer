@@ -350,7 +350,10 @@
       "subtitle": "光伏 + 储能系统投资提议",
       "preparedFor": "呈交客户",
       "preparedBy": "编制单位",
-      "currencyNote": "本报告全部金额以 {{currency}} 计"
+      "currencyNote": "本报告全部金额以 {{currency}} 计",
+      "hwConfigTitle": "华为参考配置（估算）",
+      "hwInv": "100kW 逆变器 × {{n}} 台",
+      "hwCab": "241kWh 储能系统 × {{n}} 台（合计 {{total}} kWh）"
     },
     "params": {
       "pvCap": "光伏容量 (kWp)",
@@ -403,6 +406,15 @@
       "firstYearOpex": "首年 OPEX",
       "firstYearNet": "首年净现金流",
       "monthlyChart": "月度节省构成",
+      "cardsBefore": "部署前 · 纯电网供电",
+      "cardsAfter": "部署后 · 光伏 + 储能",
+      "cardsGridOnly": "电网供电 100%",
+      "cardsAnnualCost": "年总费用",
+      "cardsAnnualSaving": "年节省",
+      "cardsBadge": "费用 −{{pct}}%",
+      "costCompareTitle": "年度费用构成对比",
+      "costOpex": "运维费用",
+      "costNetSaving": "净节省 {{v}} / 年",
       "note": "注：部署前为无光储纯电网口径（停电窗口柴油备电）；四分量分解与总费用差精确对账（a+b=电量电费差，+c+d=总节省）；收益随电价年增长，OPEX 含人工上站均衡与冷却液更换。"
     },
     "invest": {
@@ -418,7 +430,11 @@
       "revenue": "当年收益",
       "opex": "当年 OPEX",
       "net": "净现金流",
-      "cumDiscounted": "累计折现现金流"
+      "cumDiscounted": "累计折现现金流",
+      "cumCostTitle": "累计费用对比（{{years}} 年）",
+      "cumCostConv": "不投资（纯电网）",
+      "cumCostMicro": "投资光储",
+      "cumCostBreakEven": "回收点 ≈ 第 {{y}} 年"
     },
     "config": {
       "scheme": "报告方案",

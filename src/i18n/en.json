@@ -350,7 +350,10 @@
       "subtitle": "Investment Proposal for Photovoltaic + Battery Energy Storage",
       "preparedFor": "Prepared For",
       "preparedBy": "Prepared By",
-      "currencyNote": "All amounts in {{currency}}"
+      "currencyNote": "All amounts in {{currency}}",
+      "hwConfigTitle": "Huawei Reference Configuration (Est.)",
+      "hwInv": "100 kW inverters × {{n}}",
+      "hwCab": "241 kWh ESS units × {{n}} ({{total}} kWh total)"
     },
     "params": {
       "pvCap": "PV Capacity (kWp)",
@@ -403,6 +406,15 @@
       "firstYearOpex": "First-year OPEX",
       "firstYearNet": "First-year Net Cash Flow",
       "monthlyChart": "Monthly Savings Breakdown",
+      "cardsBefore": "Before · Grid Only",
+      "cardsAfter": "After · PV + BESS",
+      "cardsGridOnly": "Grid supply 100%",
+      "cardsAnnualCost": "Annual Total Cost",
+      "cardsAnnualSaving": "Annual Savings",
+      "cardsBadge": "Cost −{{pct}}%",
+      "costCompareTitle": "Annual Cost Breakdown Comparison",
+      "costOpex": "O&M",
+      "costNetSaving": "Net savings {{v}} / yr",
       "note": "Note: 'Before' = grid-only with diesel backup during outage windows; the four components reconcile exactly with the total cost delta (a+b = energy-charge delta, +c+d = total savings); revenue grows with tariff escalation; OPEX includes on-site battery balancing and coolant replacement."
     },
     "invest": {
@@ -418,7 +430,11 @@
       "revenue": "Revenue",
       "opex": "OPEX",
       "net": "Net Cash Flow",
-      "cumDiscounted": "Cumulative Discounted CF"
+      "cumDiscounted": "Cumulative Discounted CF",
+      "cumCostTitle": "Cumulative Cost Comparison ({{years}} Years)",
+      "cumCostConv": "Conventional (grid only)",
+      "cumCostMicro": "PV+BESS Investment",
+      "cumCostBreakEven": "Break-even ≈ Year {{y}}"
     },
     "config": {
       "scheme": "Report Scheme",

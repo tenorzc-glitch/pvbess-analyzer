@@ -22,7 +22,8 @@ import { scenarioDisplayName } from '../../utils/scenario-name';
 import { BrandMap, FALLBACK_BRANDS, loadBrandParams, estimateHWFinance, computeThroughput10Kwh } from '../../utils/brand';
 import { exportBlocksPDF } from '../../utils/pdf-blocks';
 import {
-  buildDispatchOption, buildMonthlySavingOption, buildSankeyOption, buildCumCashflowOption,
+  buildDispatchOption, buildMonthlySavingOption, buildSankeyOption,
+  buildCostCompareOption, buildCumCostCompareOption,
   computeTenYearMetrics,
 } from '../../utils/report-charts';
 
@@ -36,6 +37,44 @@ const fmtMoney = (v: number) => {
 };
 
 const sanitizeFileName = (s: string) => s.replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 60);
+
+/* ── RR 案例风格的极简系统示意图标（内联 SVG 基础图形，html2canvas 兼容） ── */
+const SvgGrid = () => (
+  <svg width="30" height="40" viewBox="0 0 30 40">
+    <path d="M15 3 L5 37 M15 3 L25 37 M9 26 L21 26 M11 16 L19 16 M7 33 L23 33"
+      stroke="#8c8c8c" strokeWidth="2" fill="none" strokeLinecap="round" />
+  </svg>
+);
+const SvgFactory = () => (
+  <svg width="42" height="40" viewBox="0 0 42 40">
+    <path d="M3 37 L3 15 L13 23 L13 15 L23 23 L23 15 L33 23 L33 37 Z"
+      fill="none" stroke="#595959" strokeWidth="2" strokeLinejoin="round" />
+    <rect x="35" y="7" width="5" height="30" fill="none" stroke="#595959" strokeWidth="2" />
+    <rect x="8" y="28" width="5" height="5" fill="#595959" />
+    <rect x="18" y="28" width="5" height="5" fill="#595959" />
+  </svg>
+);
+const SvgPV = () => (
+  <svg width="38" height="34" viewBox="0 0 38 34">
+    <g transform="rotate(-10 19 15)">
+      <rect x="3" y="6" width="32" height="18" rx="1" fill="none" stroke="#faad14" strokeWidth="2" />
+      <path d="M3 12 L35 12 M3 18 L35 18 M14 6 L14 24 M24 6 L24 24" stroke="#faad14" strokeWidth="1.2" />
+    </g>
+    <path d="M19 28 L19 33 M14 33 L24 33" stroke="#faad14" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+const SvgBESS = () => (
+  <svg width="26" height="40" viewBox="0 0 26 40">
+    <rect x="3" y="6" width="20" height="31" rx="2" fill="none" stroke="#52c41a" strokeWidth="2" />
+    <rect x="9" y="2" width="8" height="4" rx="1" fill="#52c41a" />
+    <path d="M14 11 L9 22 L13 22 L11 33 L18 20 L14 20 Z" fill="#52c41a" />
+  </svg>
+);
+const SvgArrow = () => (
+  <svg width="26" height="8" viewBox="0 0 26 8">
+    <path d="M1 4 L21 4 M17 1 L22 4 L17 7" stroke="#bfbfbf" strokeWidth="2" fill="none" strokeLinecap="round" />
+  </svg>
+);
 
 export default function ReportPanel() {
   const { t } = useTranslation();
@@ -117,6 +156,9 @@ export default function ReportPanel() {
 
   const capexPV = scen.pvCapacity_kWp * params.capex.pvCost_perkW;
   const capexBESS = scen.bessCapacity_kWh * params.capex.bessCost_perkWh;
+  // 华为参考配置估算（封面展示；100kW 逆变器 + 241kWh 储能系统，向上取整保证覆盖）
+  const hwInverters = Math.ceil(scen.pvCapacity_kWp / 100);
+  const hwCabinets = Math.ceil(scen.bessCapacity_kWh / 241);
   // cashflow[0] 是 Y0（-CAPEX），"首年"取 year===1 行
   const firstYear = fin.cashflow.find((r) => r.year === 1) ?? fin.cashflow[0];
   // 投资收益 10 年口径（用户拍板：NPV/图/表全 10 年）
@@ -242,6 +284,24 @@ export default function ReportPanel() {
               <div style={{ margin: '36px auto 0', width: 120, borderTop: '3px solid #1677ff' }} />
               <Title level={3} style={{ marginTop: 36 }}>{project?.name ?? ''}</Title>
               <Text style={{ fontSize: 15 }}>{scenarioDisplayName(scen, t)}</Text>
+              {/* 华为参考配置估算（随 includeHW 显隐，与第六章联动） */}
+              {includeHW && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{
+                    display: 'inline-block', border: '1px solid #91caff', background: '#f0f7ff',
+                    borderRadius: 8, padding: '10px 20px',
+                  }}>
+                    <Text style={{ fontSize: 12, color: '#0958d9', display: 'block', marginBottom: 4 }}>
+                      {t('report.cover.hwConfigTitle')}
+                    </Text>
+                    <Text style={{ fontSize: 14.5, fontWeight: 600, color: '#262626' }}>
+                      {t('report.cover.hwInv', { n: hwInverters })}
+                      <span style={{ margin: '0 10px', color: '#bfbfbf' }}>·</span>
+                      {t('report.cover.hwCab', { n: hwCabinets, total: hwCabinets * 241 })}
+                    </Text>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <Row gutter={16} style={{ textAlign: 'center', marginBottom: 60 }}>
@@ -307,7 +367,7 @@ export default function ReportPanel() {
               <li>{t('report.strategy.s8', { peak: `${params.grid.peakPrice_perkWh} ${sym}`, offpeak: `${params.grid.offPeakPrice_perkWh} ${sym}` })}</li>
             </ul>
             <ReactECharts
-              option={buildDispatchOption(t, monthResult, params.grid.contractDemand_kW, MONTHS[repMonth - 1])}
+              option={buildDispatchOption(t, monthResult, params.grid.contractDemand_kW, MONTHS[repMonth - 1], true)}
               style={{ height: 340 }}
             />
           </section>
@@ -315,6 +375,51 @@ export default function ReportPanel() {
           {/* ④ 节省明细 */}
           <section data-pdf-block style={{ marginTop: 24 }}>
             {secTitle('report.sec.savings')}
+            {/* RR 案例风格：部署前后对比卡（数字取自已计算结果，仅表达形式新增） */}
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              <Col span={11}>
+                <div style={{ border: '1px solid #d9d9d9', borderRadius: 8, padding: '14px 16px' }}>
+                  <Text strong style={{ fontSize: 14 }}>{t('report.savings.cardsBefore')}</Text>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0', justifyContent: 'center' }}>
+                    <SvgGrid /><SvgArrow /><SvgFactory />
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#595959' }}>{t('report.savings.cardsGridOnly')}</div>
+                  <div style={{ marginTop: 6, fontSize: 13 }}>
+                    {t('report.savings.cardsAnnualCost')}：
+                    <Text strong style={{ fontSize: 15 }}>{fmtMoney(fin.baseline.annualTotal)} {sym}</Text>
+                  </div>
+                </div>
+              </Col>
+              <Col span={13}>
+                <div style={{ border: '1px solid #b7eb8f', background: '#f6ffed', borderRadius: 8, padding: '14px 16px', position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute', top: 10, right: 12, background: '#389e0d', color: '#fff',
+                    fontSize: 12, fontWeight: 700, borderRadius: 10, padding: '2px 10px',
+                  }}>
+                    {t('report.savings.cardsBadge', { pct: Math.round((bd.total / Math.max(fin.baseline.annualTotal, 1)) * 100) })}
+                  </span>
+                  <Text strong style={{ fontSize: 14 }}>{t('report.savings.cardsAfter')}</Text>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0', justifyContent: 'center' }}>
+                    <SvgPV /><SvgBESS /><SvgGrid /><SvgArrow /><SvgFactory />
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#595959' }}>
+                    PV {scen.pvCapacity_kWp} kWp · BESS {scen.bessCapacity_kWh} kWh / {scen.pcsPower_kW} kW
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13 }}>
+                    {t('report.savings.cardsAnnualCost')}：
+                    <Text strong style={{ fontSize: 15 }}>{fmtMoney(annual.totalEnergyCost)} {sym}</Text>
+                    <span style={{ margin: '0 8px', color: '#bfbfbf' }}>|</span>
+                    {t('report.savings.cardsAnnualSaving')}：
+                    <Text strong style={{ fontSize: 15, color: '#389e0d' }}>{fmtMoney(bd.total)} {sym}</Text>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+            {/* RR 案例风格：年度费用构成对比（横向堆叠条 + 净节省标注） */}
+            <ReactECharts
+              option={buildCostCompareOption(t, fin, annual, firstYear?.opex ?? 0, sym)}
+              style={{ height: 230 }}
+            />
             <Table
               size="small"
               pagination={false}
@@ -369,7 +474,10 @@ export default function ReportPanel() {
               <Col span={8}><Statistic title={t('report.invest.pbp')} value={fin.paybackStatic.toFixed(2)} suffix={t('common.years')} /></Col>
               <Col span={8}><Statistic title={t('report.invest.lcoe10')} value={tenYear.lcoe10.toFixed(2)} suffix={`${sym}/kWh`} /></Col>
             </Row>
-            <ReactECharts option={buildCumCashflowOption(t, fin, 10)} style={{ height: 300 }} />
+            <ReactECharts
+              option={buildCumCostCompareOption(t, fin, annual.totalEnergyCost, params.financial.priceGrowth, 10, sym)}
+              style={{ height: 300 }}
+            />
             <Title level={5} style={{ marginTop: 16 }}>{t('report.invest.cashflowTable10')}</Title>
             <Table
               size="small"

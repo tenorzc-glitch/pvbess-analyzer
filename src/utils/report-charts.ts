@@ -8,6 +8,11 @@
  * - 月度节省图：电费/柴油两系列 → 四分量中的月度三分量堆叠（PV自用/储能套利/需量差）
  * - Sankey：更名储能充电/储能放电，新增电网→储能充电流，节点色块+K缩写标签美化
  * - 现金流图：可选 10 年口径（报告用）
+ *
+ * 批次 R5（报告修改意见 20260806，参考 RR 工商业案例表达形式，内容/数字不变）：
+ * - 调度图：可选 loadAsBar（报告章负荷折线→柱状，结果页不受影响）
+ * - 新增年度费用构成对比（横向堆叠条 + 净节省标注）
+ * - 新增累计费用双线对比（不投资 vs 投资光储 + 回收点标注），替换报告投资章单线现金流图
  */
 import { TFunction } from 'i18next';
 import { EngineMonthResult, EngineAnnualSummary, BaselineOutput } from '../engine/types';
@@ -21,6 +26,7 @@ export function buildDispatchOption(
   monthResult: EngineMonthResult | undefined,
   _contractDemand_kW: number, // 保留签名兼容；峰值线改由数据推导
   monthLabel: string,
+  loadAsBar = false, // 报告用：负荷折线→柱状（参考 RR 案例风格）；结果页默认保持折线
 ) {
   if (!monthResult) return {};
 
@@ -58,8 +64,11 @@ export function buildDispatchOption(
     ],
     series: [
       {
-        name: t('results.load'), type: 'line', data: intervals.map(d => +(d.netLoad + d.pvGen).toFixed(2)),
-        lineStyle: { color: '#8c8c8c', width: 2, type: 'dashed' }, itemStyle: { color: '#8c8c8c' },
+        name: t('results.load'), type: loadAsBar ? 'bar' : 'line',
+        barWidth: loadAsBar ? '60%' : undefined,
+        data: intervals.map(d => +(d.netLoad + d.pvGen).toFixed(2)),
+        lineStyle: loadAsBar ? undefined : { color: '#8c8c8c', width: 2, type: 'dashed' },
+        itemStyle: { color: loadAsBar ? '#bfbfbf' : '#8c8c8c' },
         markLine: {
           silent: true,
           symbol: 'none',
@@ -242,6 +251,163 @@ export function buildCumCashflowOption(t: TFunction, fin: FinanceResult, years?:
       },
     ],
     grid: { left: 60, right: 20, top: 40, bottom: 30 },
+  };
+}
+
+/** 报告章数值缩写（复用 fmtK 风格）：≥1M → M，≥1k → k */
+const fmtMoneyK = (v: number) => {
+  const abs = Math.abs(v);
+  if (abs >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${(v / 1e3).toFixed(1)}k`;
+  return v.toFixed(0);
+};
+
+/**
+ * 年度费用构成对比（RR 案例 OPEX 堆叠条风格）：
+ * 部署前（电量/需量/柴油）vs 部署后（电量/需量/柴油 + 运维），条端合计标签 + 副标题净节省。
+ * 数字全部取自已计算的财务结果（fin.baseline / sim.annual / 首年 OPEX），不产生新论据。
+ */
+export function buildCostCompareOption(
+  t: TFunction,
+  fin: FinanceResult,
+  afterAnnual: Pick<EngineAnnualSummary, 'gridCost' | 'demandChargeCost' | 'dieselCost'>,
+  opexYear1: number,
+  sym: string,
+) {
+  const cats = [t('report.savings.before'), t('report.savings.after')];
+  const seg = (
+    name: string, before: number, after: number, color: string,
+  ) => ({
+    name, type: 'bar', stack: 'cost', barWidth: 34,
+    data: [+before.toFixed(0), +after.toFixed(0)],
+    itemStyle: { color },
+    label: {
+      show: true, position: 'inside' as const, fontSize: 10, color: '#fff',
+      formatter: (p: any) => (Math.abs(p.value) >= 20000 ? fmtMoneyK(p.value) : ''),
+    },
+  });
+  const beforeTotal = fin.baseline.annualTotal;
+  const afterTotal = afterAnnual.gridCost + afterAnnual.demandChargeCost + afterAnnual.dieselCost + opexYear1;
+  const totals = [beforeTotal, afterTotal];
+  const netSaving = beforeTotal - afterTotal;
+
+  return {
+    title: {
+      text: t('report.savings.costCompareTitle'), left: 'center',
+      subtext: `− ${t('report.savings.costNetSaving', { v: `${fmtMoneyK(netSaving)} ${sym}` })}`,
+      subtextStyle: { color: '#389e0d', fontWeight: 600, fontSize: 13 },
+    },
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      valueFormatter: (v: any) => `${Number(v).toLocaleString()} ${sym}`,
+    },
+    legend: {
+      bottom: 0,
+      // 透明合计标签系列不进图例
+      data: [
+        t('report.savings.gridEnergy'), t('report.savings.demand'),
+        t('report.savings.diesel'), t('report.savings.costOpex'),
+      ],
+    },
+    grid: { left: 90, right: 90, top: 64, bottom: 48 },
+    xAxis: {
+      type: 'value',
+      axisLabel: { formatter: (v: number) => fmtMoneyK(v) },
+    },
+    yAxis: { type: 'category', data: cats, inverse: true },
+    series: [
+      seg(t('report.savings.gridEnergy'), fin.baseline.annualGridCost, afterAnnual.gridCost, '#1677ff'),
+      seg(t('report.savings.demand'), fin.baseline.annualDemandCharge, afterAnnual.demandChargeCost, '#fa8c16'),
+      seg(t('report.savings.diesel'), fin.baseline.annualDieselCost, afterAnnual.dieselCost, '#722ed1'),
+      seg(t('report.savings.costOpex'), 0, opexYear1, '#8c8c8c'),
+      // 透明占位系列：条端合计标签
+      {
+        name: 'total', type: 'bar', stack: 'cost', data: [0, 0],
+        itemStyle: { color: 'transparent' },
+        label: {
+          show: true, position: 'right' as const, fontSize: 11.5, fontWeight: 700, color: '#262626',
+          formatter: (p: any) => `${fmtMoneyK(totals[p.dataIndex])} ${sym}`,
+        },
+        tooltip: { show: false },
+        silent: true,
+      },
+    ],
+  };
+}
+
+/**
+ * 累计费用双线对比（RR 案例 Cost comparison 风格，10 年口径）：
+ * - 不投资（纯电网）：Σ 基线年总费用 × 电价增长
+ * - 投资光储：CAPEX + Σ（场景年总费用 × 电价增长 + 当年 OPEX）
+ * 两线交点即静态回收期（与 paybackStatic 同源：差值累计 = 净现金流累计），标注回收点。
+ */
+export function buildCumCostCompareOption(
+  t: TFunction,
+  fin: FinanceResult,
+  afterAnnualTotalCost: number,
+  priceGrowth: number,
+  years = 10,
+  sym: string,
+) {
+  const xs: string[] = ['Y0'];
+  const conv: number[] = [0];
+  const micro: number[] = [+fin.capex.toFixed(0)];
+  let convCum = 0;
+  let microCum = fin.capex;
+  for (let y = 1; y <= years; y++) {
+    const growth = Math.pow(1 + priceGrowth, y - 1);
+    const cf = fin.cashflow.find((r) => r.year === y);
+    convCum += fin.baseline.annualTotal * growth;
+    microCum += afterAnnualTotalCost * growth + (cf?.opex ?? 0);
+    xs.push(`Y${y}`);
+    conv.push(+convCum.toFixed(0));
+    micro.push(+microCum.toFixed(0));
+  }
+  // 回收点（小数年，线性插值 micro 累计值）
+  const pbp = fin.paybackStatic;
+  const y0 = Math.floor(pbp);
+  const frac = pbp - y0;
+  const microAtPbp = (micro[y0] ?? 0) + frac * ((micro[y0 + 1] ?? micro[y0] ?? 0) - (micro[y0] ?? 0));
+
+  return {
+    title: { text: t('report.invest.cumCostTitle', { years }), left: 'center' },
+    tooltip: {
+      trigger: 'axis',
+      valueFormatter: (v: any) => `${fmtMoneyK(Number(v))} ${sym}`,
+    },
+    legend: { bottom: 0 },
+    grid: { left: 70, right: 30, top: 46, bottom: 48 },
+    xAxis: { type: 'category', data: xs },
+    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmtMoneyK(v) } },
+    series: [
+      {
+        name: t('report.invest.cumCostConv'), type: 'line', data: conv,
+        lineStyle: { color: '#8c8c8c', width: 2 }, itemStyle: { color: '#8c8c8c' },
+        symbol: 'circle', symbolSize: 6,
+      },
+      {
+        name: t('report.invest.cumCostMicro'), type: 'line', data: micro,
+        lineStyle: { color: '#1677ff', width: 2.5 }, itemStyle: { color: '#1677ff' },
+        symbol: 'circle', symbolSize: 6,
+        areaStyle: { color: 'rgba(22,119,255,0.08)' },
+        markPoint: {
+          symbol: 'circle', symbolSize: 11,
+          itemStyle: { color: '#389e0d', borderColor: '#fff', borderWidth: 2 },
+          label: {
+            position: 'top', distance: 8,
+            fontSize: 11, color: '#389e0d', fontWeight: 700,
+            formatter: () => t('report.invest.cumCostBreakEven', { y: pbp.toFixed(1) }),
+          },
+          data: [{ coord: [+pbp.toFixed(2), +microAtPbp.toFixed(0)] }],
+        },
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [{ xAxis: +pbp.toFixed(2) }],
+          lineStyle: { color: '#389e0d', type: 'dashed', width: 1.5 },
+          label: { show: false },
+        },
+      },
+    ],
   };
 }
 
