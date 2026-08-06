@@ -22,6 +22,20 @@ function toJPEG(canvas: HTMLCanvasElement): string {
   return canvas.toDataURL('image/jpeg', 0.95);
 }
 
+function toPNG(canvas: HTMLCanvasElement): string {
+  return canvas.toDataURL('image/png');
+}
+
+/** 页脚叠加选项：Pass 2 在导出前对每页画细灰线 + 左口径声明 + 右页码 */
+export interface PdfFooterOptions {
+  /** 左侧口径声明（英文短句，jsPDF 内置 helvetica 无中文字体） */
+  footerLeft: string;
+  /** 页码格式，默认 `${n}/${N}` */
+  pageLabel?: (page: number, total: number) => string;
+  /** 封面页（data-pdf-cover 独占页）是否跳过页脚，默认 true */
+  skipCover?: boolean;
+}
+
 /**
  * antd 6 强制 CSS 变量模式（cssVar 不再可关），html2canvas 自研 CSS 解析器不评估 var()。
  * 在克隆文档阶段把源元素的计算样式（var() 已被浏览器解析为具体值）内联到克隆元素上，
@@ -64,6 +78,7 @@ export async function exportBlocksPDF(
   container: HTMLElement,
   fileName: string,
   onProgress?: (done: number, total: number) => void,
+  footer?: PdfFooterOptions,
 ): Promise<void> {
   const blocks = Array.from(container.querySelectorAll<HTMLElement>('[data-pdf-block]'));
   if (blocks.length === 0) throw new Error('no [data-pdf-block] in container');
@@ -72,6 +87,7 @@ export async function exportBlocksPDF(
   let cursorY = 0;
   let first = true;
   let done = 0;
+  const coverPages = new Set<number>();
 
   for (const el of blocks) {
     const canvas = await html2canvas(el, {
@@ -86,10 +102,11 @@ export async function exportBlocksPDF(
 
     const imgH = (canvas.height * CONTENT_W) / canvas.width; // 等比缩放到版心宽
 
-    // 封面块：独占整页
+    // 封面块：独占整页；深底白字用 PNG 避免 JPEG 压缩振铃
     if (el.hasAttribute('data-pdf-cover')) {
       if (!first) pdf.addPage();
-      pdf.addImage(toJPEG(canvas), 'JPEG', MARGIN, MARGIN, CONTENT_W, CONTENT_H);
+      coverPages.add(pdf.getNumberOfPages());
+      pdf.addImage(toPNG(canvas), 'PNG', MARGIN, MARGIN, CONTENT_W, CONTENT_H);
       cursorY = CONTENT_H; // 后续块强制换页
       first = false;
       continue;
@@ -117,6 +134,27 @@ export async function exportBlocksPDF(
       cursorY = 0;
     }
     first = false;
+  }
+
+  // Pass 2：页脚叠加（此时总页数已知）
+  if (footer) {
+    const total = pdf.getNumberOfPages();
+    const skipCover = footer.skipCover ?? true;
+    const pageLabel = footer.pageLabel ?? ((p: number, n: number) => `${p} / ${n}`);
+    const yLine = PAGE_H - MARGIN + 14;
+    const yText = PAGE_H - MARGIN + 26;
+    for (let p = 1; p <= total; p++) {
+      if (skipCover && coverPages.has(p)) continue;
+      pdf.setPage(p);
+      pdf.setDrawColor('#d9d9d9');
+      pdf.setLineWidth(0.5);
+      pdf.line(MARGIN, yLine, PAGE_W - MARGIN, yLine);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor('#8c8c8c');
+      pdf.text(footer.footerLeft, MARGIN, yText);
+      pdf.text(pageLabel(p, total), PAGE_W - MARGIN, yText, { align: 'right' });
+    }
   }
 
   pdf.save(`${fileName}.pdf`);

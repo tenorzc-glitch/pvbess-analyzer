@@ -146,6 +146,48 @@ export function computeThroughput10Kwh(
 }
 
 /**
+ * 品牌情景现金流核心（estimateHWFinance 与逐因子归因共用，口径单源）：
+ * gain 始终相对行业基线定义（brand=行业时 gain=1），因此行业/华为/任意混合参数都可注入。
+ */
+function runBrandCashflow(
+  params: InputParams,
+  scenario: ScenarioConfig,
+  industryFinance: FinanceResult,
+  ind: BrandParams,
+  brand: BrandParams,
+  annualDischargeKwh: number,
+): { capex: number; opexYear1: number; annualRevenue: number; revenue10: number; npv10: number; throughput10: number; npvLife: number } {
+  const pvCapex = scenario.pvCapacity_kWp * params.capex.pvCost_perkW;
+  const bessCapex = scenario.bessCapacity_kWh * brand.costPerKWh;
+  const capex = pvCapex + bessCapex;
+  const opexYear1 = pvCapex * params.opex.pvFixedOpexRate + bessCapex * brand.opexRate;
+  const gain = (brand.rte / ind.rte) * (brand.dod / ind.dod) * (brand.operatingDaysPerYear / ind.operatingDaysPerYear);
+  const annualRevenue = industryFinance.annualRevenue * gain;
+
+  const life = params.financial.projectLife;
+  const r = params.financial.discountRate;
+  const g = params.financial.priceGrowth;
+  const og = params.financial.opexGrowth;
+
+  let npvLife = -capex;
+  let npv10 = -capex;
+  let revenue10 = 0;
+  for (let y = 1; y <= life; y++) {
+    const soh = brand.sohCurve[Math.min(y - 1, brand.sohCurve.length - 1)] ?? 1;
+    const rev = annualRevenue * soh * Math.pow(1 + g, y - 1);
+    const opex = opexYear1 * Math.pow(1 + og, y - 1);
+    const dcf = (rev - opex) / Math.pow(1 + r, y);
+    npvLife += dcf;
+    if (y <= 10) {
+      npv10 += dcf;
+      revenue10 += rev;
+    }
+  }
+  const throughput10 = computeThroughput10Kwh(annualDischargeKwh, brand.sohCurve, gain);
+  return { capex, opexYear1, annualRevenue, revenue10, npv10, throughput10, npvLife };
+}
+
+/**
  * HW 方案简化估算（不重仿真，与 ComparePanel 口径一致）：
  * 同容量下，年收益按 RTE 比 × DOD 比 × 运行天数比放大；
  * OPEX 为华为口径（固定运维率 × 华为储能 CAPEX + 光伏运维，无人工均衡/冷却液）；
@@ -158,55 +200,96 @@ export function estimateHWFinance(
   brands: BrandMap,
   industrySim?: EngineScenarioResult | null
 ): HWEstimate {
-  const capexHW = computeBrandCapex(params, scenario, brands.HW);
-  const bessCapexHW = scenario.bessCapacity_kWh * brands.HW.costPerKWh;
-  const pvCapex = scenario.pvCapacity_kWp * params.capex.pvCost_perkW;
-
-  const gain = brandGain(brands);
-  const annualRevenueHW = industryFinance.annualRevenue * gain;
-
-  // 华为 OPEX：光伏运维 + 华为储能固定运维（无人工均衡、无冷却液更换）
-  const opexHW1 = pvCapex * params.opex.pvFixedOpexRate + bessCapexHW * brands.HW.opexRate;
-
-  const life = params.financial.projectLife;
-  const r = params.financial.discountRate;
-  const g = params.financial.priceGrowth;
-  const og = params.financial.opexGrowth;
-
-  // 逐年现金流（15 年全寿命 + 前 10 年口径）
-  let npvHW = -capexHW;
-  let npv10 = -capexHW;
-  let revenue10 = 0;
-  for (let y = 1; y <= life; y++) {
-    const soh = brands.HW.sohCurve[Math.min(y - 1, brands.HW.sohCurve.length - 1)] ?? 1;
-    const rev = annualRevenueHW * soh * Math.pow(1 + g, y - 1);
-    const opex = opexHW1 * Math.pow(1 + og, y - 1);
-    const dcf = (rev - opex) / Math.pow(1 + r, y);
-    npvHW += dcf;
-    if (y <= 10) {
-      npv10 += dcf;
-      revenue10 += rev;
-    }
-  }
-
-  const irrHW = industryFinance.irr + (npvHW - industryFinance.npv) / Math.max(capexHW, 1) * 0.5;
-  const paybackHW = capexHW / Math.max(annualRevenueHW - opexHW1, 1);
-
-  // 10 年吞吐：行业首年放电量 × 华为放大系数 × 华为 SOH 衰减
   const annualDischarge = industrySim
     ? industrySim.monthlyResults.reduce((s, m) => s + (m.totals.bessDischarge_kWh || 0), 0)
     : 0;
-  const throughput10 = computeThroughput10Kwh(annualDischarge, brands.HW.sohCurve, gain);
+  const core = runBrandCashflow(params, scenario, industryFinance, brands.industry_avg, brands.HW, annualDischarge);
+
+  const irrHW = industryFinance.irr + (core.npvLife - industryFinance.npv) / Math.max(core.capex, 1) * 0.5;
+  const paybackHW = core.capex / Math.max(core.annualRevenue - core.opexYear1, 1);
 
   return {
-    capex: capexHW,
-    opexYear1: opexHW1,
-    annualRevenue: annualRevenueHW,
-    revenue10,
-    npv10,
-    throughput10,
-    npv: npvHW,
+    capex: core.capex,
+    opexYear1: core.opexYear1,
+    annualRevenue: core.annualRevenue,
+    revenue10: core.revenue10,
+    npv10: core.npv10,
+    throughput10: core.throughput10,
+    npv: core.npvLife,
     irr: Math.max(-1, Math.min(1, irrHW)),
     paybackStatic: paybackHW,
+  };
+}
+
+/** 归因因子（顺序固定；顺序影响分项分配、不影响合计——页面须带 indicative 声明） */
+export type AttributionFactor = 'rte' | 'dod' | 'days' | 'soh' | 'opex' | 'capex';
+export const ATTRIBUTION_ORDER: AttributionFactor[] = ['rte', 'dod', 'days', 'soh', 'opex', 'capex'];
+
+export interface FactorStep {
+  factor: AttributionFactor;
+  /** 替换该因子后的累计水平 */
+  throughput10: number;
+  npv10: number;
+  /** 该因子的边际贡献（与上一步差值） */
+  dThroughput: number;
+  dNpv: number;
+}
+
+export interface FactorAttribution {
+  base: { throughput10: number; npv10: number };
+  steps: FactorStep[];
+  final: { throughput10: number; npv10: number };
+}
+
+/**
+ * 逐因子瀑布归因（顺序替换法）：从行业基线出发，按 ATTRIBUTION_ORDER 每次把一个
+ * 因子替换为 HW 值重算，差值即该因子边际贡献。数学上 final 恒等于 estimateHWFinance
+ * 全量输出（可作为断言）；opex/capex 不影响吞吐量（dThroughput=0，不进吞吐瀑布）。
+ */
+export function computeFactorAttribution(
+  params: InputParams,
+  scenario: ScenarioConfig,
+  industryFinance: FinanceResult,
+  brands: BrandMap,
+  industrySim?: EngineScenarioResult | null,
+): FactorAttribution {
+  const ind = brands.industry_avg;
+  const hwB = brands.HW;
+  const annualDischarge = industrySim
+    ? industrySim.monthlyResults.reduce((s, m) => s + (m.totals.bessDischarge_kWh || 0), 0)
+    : 0;
+
+  const applyFactor = (mixed: BrandParams, f: AttributionFactor): BrandParams => {
+    const m = { ...mixed, sohCurve: [...mixed.sohCurve] };
+    if (f === 'rte') m.rte = hwB.rte;
+    else if (f === 'dod') m.dod = hwB.dod;
+    else if (f === 'days') m.operatingDaysPerYear = hwB.operatingDaysPerYear;
+    else if (f === 'soh') m.sohCurve = [...hwB.sohCurve];
+    else if (f === 'opex') m.opexRate = hwB.opexRate;
+    else if (f === 'capex') m.costPerKWh = hwB.costPerKWh;
+    return m;
+  };
+
+  const baseRun = runBrandCashflow(params, scenario, industryFinance, ind, ind, annualDischarge);
+  const steps: FactorStep[] = [];
+  let prev = { throughput10: baseRun.throughput10, npv10: baseRun.npv10 };
+  let mixed: BrandParams = { ...ind, sohCurve: [...ind.sohCurve] };
+  for (const f of ATTRIBUTION_ORDER) {
+    mixed = applyFactor(mixed, f);
+    const cur = runBrandCashflow(params, scenario, industryFinance, ind, mixed, annualDischarge);
+    steps.push({
+      factor: f,
+      throughput10: cur.throughput10,
+      npv10: cur.npv10,
+      dThroughput: cur.throughput10 - prev.throughput10,
+      dNpv: cur.npv10 - prev.npv10,
+    });
+    prev = { throughput10: cur.throughput10, npv10: cur.npv10 };
+  }
+
+  return {
+    base: { throughput10: baseRun.throughput10, npv10: baseRun.npv10 },
+    steps,
+    final: prev,
   };
 }

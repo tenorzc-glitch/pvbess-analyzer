@@ -19,6 +19,7 @@ import { EngineMonthResult, EngineAnnualSummary, BaselineOutput } from '../engin
 import { InputParams } from '../types/params';
 import { FinanceResult } from '../types/finance';
 import { monthlyDemandCharge } from '../engine/simulation-engine';
+import { ReportFx, fmtMoneyShort } from './report-fx';
 
 /** 典型日 15min 调度曲线（负荷/PV/充放/购电/柴油/SOC + 部署前后峰值双虚线） */
 export function buildDispatchOption(
@@ -379,6 +380,8 @@ export function buildCostCompareOption(
 }
 
 /**
+ * @deprecated 报告投资章已改用 buildPaybackCashflowOption（红绿分区式）；保留一个迭代周期后删除。
+ *
  * 累计费用双线对比（RR 案例 Cost comparison 风格，10 年口径）：
  * - 不投资（纯电网）：Σ 基线年总费用 × 电价增长
  * - 投资光储：CAPEX + Σ（场景年总费用 × 电价增长 + 当年 OPEX）
@@ -473,4 +476,200 @@ export function computeTenYearMetrics(
   }
   const lcoe10 = (fin.capex + discOpex) / Math.max(discEnergy, 1);
   return { npv10, lcoe10, revenue10, opex10 };
+}
+
+/**
+ * 投资章主图（报告改版）：未折现累计现金流单线 + 零下红区/零上绿区 markArea
+ * + 大号双行 PAYBACK 回收点标注（对标参考报告 P6）。
+ * fx 传入时 series/坐标轴一律用换算后数值，保证图与表现值一致。
+ */
+export function buildPaybackCashflowOption(
+  t: TFunction,
+  fin: FinanceResult,
+  years = 10,
+  fx?: ReportFx,
+) {
+  const rows = fin.cashflow.filter((r) => r.year <= years);
+  let acc = 0;
+  const cumStaticBrl = rows.map((r) => +(acc += r.netCashflow).toFixed(0));
+  const conv = (v: number) => (fx ? +fx.to(v).toFixed(0) : v);
+  const cumStatic = cumStaticBrl.map(conv);
+  const maxYear = rows[rows.length - 1]?.year ?? 0;
+  const pbp = fin.paybackStatic;
+  const valid = Number.isFinite(pbp) && pbp >= 0 && pbp <= maxYear;
+  const fmt = (v: number) => fmtMoneyShort(v);
+  const sym = fx?.sym ?? '';
+
+  return {
+    title: { text: t('report.invest.cashflowTable10'), left: 'center' },
+    tooltip: {
+      trigger: 'axis',
+      valueFormatter: (v: any) => `${fmt(Number(v))} ${sym}`,
+    },
+    grid: { left: 70, right: 40, top: 46, bottom: 40 },
+    xAxis: { type: 'category', data: rows.map((r) => `Y${r.year}`) },
+    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => fmt(v) } },
+    series: [
+      {
+        name: t('finance.chart.cumStatic'),
+        type: 'line',
+        data: cumStatic,
+        lineStyle: { color: '#262626', width: 2.5 },
+        itemStyle: { color: '#262626' },
+        symbol: 'circle',
+        symbolSize: 7,
+        markArea: {
+          silent: true,
+          data: [
+            [
+              {
+                yAxis: 'min',
+                itemStyle: { color: 'rgba(255,77,79,0.10)' },
+                label: {
+                  show: true, position: 'insideBottomLeft' as const,
+                  fontSize: 11, color: 'rgba(207,19,34,0.75)',
+                  formatter: t('report.invest.zoneNeg'),
+                },
+              },
+              { yAxis: 0 },
+            ],
+            [
+              {
+                yAxis: 0,
+                itemStyle: { color: 'rgba(56,158,13,0.10)' },
+                label: {
+                  show: true, position: 'insideTopRight' as const,
+                  fontSize: 11, color: 'rgba(35,120,4,0.75)',
+                  formatter: t('report.invest.zonePos'),
+                },
+              },
+              { yAxis: 'max' },
+            ],
+          ],
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          data: [
+            { yAxis: 0, lineStyle: { color: '#8c8c8c', type: 'solid' as const, width: 1 } },
+            ...(valid ? [{ xAxis: +pbp.toFixed(2) }] : []),
+          ],
+          lineStyle: { color: '#389e0d', type: 'dashed' as const, width: 1.5 },
+          label: { show: false },
+        },
+        markPoint: valid
+          ? {
+              symbol: 'circle', symbolSize: 14,
+              itemStyle: { color: '#389e0d', borderColor: '#fff', borderWidth: 2 },
+              label: {
+                position: 'right' as const, distance: 12,
+                fontSize: 14, fontWeight: 800 as const, color: '#237804', lineHeight: 19,
+                align: 'left' as const,
+                formatter: () =>
+                  t('report.invest.paybackMark', {
+                    y: pbp.toFixed(2),
+                    yy: Math.floor(pbp),
+                    mm: Math.round((pbp % 1) * 12),
+                  }),
+              },
+              data: [{ coord: [+pbp.toFixed(2), 0] }],
+            }
+          : undefined,
+      },
+    ],
+  };
+}
+
+/** 瀑布图条目：start/end 为全长柱，delta 为正负增减段 */
+export interface WaterfallItem {
+  key: string;
+  label: string;
+  value: number;
+  kind: 'start' | 'delta' | 'end';
+}
+
+/**
+ * 通用瀑布图（HW 章双瀑布复用：吞吐量 MWh / NPV 金额）：
+ * 经典两系列堆叠——透明辅助系列垫底 + 可见系列（正绿负红，start/end 蓝）。
+ * fmt 为条端数值标签格式化（MWh 或 fx.money 换算后值）。
+ */
+export function buildWaterfallOption(
+  items: WaterfallItem[],
+  opts: {
+    unit: string;
+    fmt: (v: number) => string;
+    colorPos?: string;
+    colorNeg?: string;
+    colorTotal?: string;
+  },
+) {
+  const colorPos = opts.colorPos ?? '#389e0d';
+  const colorNeg = opts.colorNeg ?? '#ff4d4f';
+  const colorTotal = opts.colorTotal ?? '#1677ff';
+
+  const labels = items.map((it) => it.label);
+  const assist: number[] = [];
+  const bars: { value: number; itemStyle: { color: string } }[] = [];
+  let run = 0;
+  for (const it of items) {
+    if (it.kind === 'start' || it.kind === 'end') {
+      assist.push(0);
+      bars.push({ value: +it.value.toFixed(1), itemStyle: { color: colorTotal } });
+      run = it.value;
+    } else {
+      const from = run;
+      run = run + it.value;
+      const lo = Math.min(from, run);
+      assist.push(+lo.toFixed(1));
+      bars.push({
+        value: +Math.abs(it.value).toFixed(1),
+        itemStyle: { color: it.value >= 0 ? colorPos : colorNeg },
+      });
+    }
+  }
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (ps: any) => {
+        const p = Array.isArray(ps) ? ps[1] : ps;
+        const it = items[p?.dataIndex ?? 0];
+        if (!it) return '';
+        const v = it.kind === 'delta' ? it.value : it.value;
+        const sign = it.kind === 'delta' && v > 0 ? '+' : '';
+        return `${it.label}<br/>${sign}${opts.fmt(v)} ${opts.unit}`;
+      },
+    },
+    grid: { left: 64, right: 16, top: 28, bottom: 56 },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { interval: 0, rotate: 24, fontSize: 10 },
+    },
+    yAxis: {
+      type: 'value',
+      name: opts.unit,
+      axisLabel: { formatter: (v: number) => opts.fmt(v) },
+    },
+    series: [
+      {
+        name: 'assist', type: 'bar', stack: 'wf', data: assist,
+        itemStyle: { color: 'transparent' }, tooltip: { show: false }, silent: true,
+      },
+      {
+        name: 'value', type: 'bar', stack: 'wf', barWidth: '52%',
+        data: bars,
+        label: {
+          show: true, position: 'top' as const, fontSize: 10, fontWeight: 600, color: '#262626',
+          formatter: (p: any) => {
+            const it = items[p.dataIndex];
+            if (!it) return '';
+            const sign = it.kind === 'delta' && it.value > 0 ? '+' : it.value < 0 ? '−' : '';
+            return `${sign}${opts.fmt(Math.abs(it.value))}`;
+          },
+        },
+      },
+    ],
+  };
 }

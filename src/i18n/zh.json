@@ -357,7 +357,19 @@
       "currencyNote": "本报告全部金额以 {{currency}} 计",
       "hwConfigTitle": "华为参考配置（估算）",
       "hwInv": "100kW 逆变器 × {{n}} 台",
-      "hwCab": "241kWh 储能系统 × {{n}} 台（合计 {{total}} kWh）"
+      "hwCab": "241kWh 储能系统 × {{n}} 台（合计 {{total}} kWh）",
+      "positioning": "光储一体方案为该设施削减 {{pct}}% 年度能源费用",
+      "headline": "该设施当前年度能源费用约 {{baseline}}（含电量电费、需量电费与柴油发电）。部署 {{pv}} kWp 光伏与 {{bess}} kWh 储能后，首年净现金流约 {{net}}，静态回收期 {{payback}} 年，十年 NPV 约 {{npv}}。",
+      "specPv": "光伏阵列",
+      "specInv": "逆变器",
+      "specBess": "建模储能",
+      "specHwUnits": "HW 储能单元",
+      "metricNpv": "十年 NPV",
+      "metricPayback": "静态回收期",
+      "metricLcoe": "十年 LCOE",
+      "metricNetY1": "首年净现金流",
+      "methodNote": "金额为产品化估算口径，数字按年取整",
+      "headlineTitle": "投资要点"
     },
     "params": {
       "pvCap": "光伏容量 (kWp)",
@@ -438,7 +450,12 @@
       "cumCostTitle": "累计费用对比（{{years}} 年）",
       "cumCostConv": "不投资（纯电网）",
       "cumCostMicro": "投资光储",
-      "cumCostBreakEven": "回收点 ≈ 第 {{y}} 年"
+      "cumCostBreakEven": "回收点 ≈ 第 {{y}} 年",
+      "paybackMark": "回收 {{y}} 年\n{{yy}} 年 + 约 {{mm}} 个月",
+      "colGross": "毛收益",
+      "colCumUndisc": "累计（未折现）",
+      "zoneNeg": "投资尚未回收",
+      "zonePos": "净价值创造"
     },
     "config": {
       "scheme": "报告方案",
@@ -449,7 +466,9 @@
       "companyPh": "例如：某某新能源科技",
       "repMonth": "代表月份",
       "exportPdf": "导出 PDF",
-      "exporting": "正在生成 PDF..."
+      "exporting": "正在生成 PDF...",
+      "currency": "报告币种",
+      "fxRate": "汇率（1 USD = X BRL）"
     },
     "sec": {
       "params": "一、系统参数",
@@ -457,7 +476,19 @@
       "savings": "三、节省明细",
       "energyFlow": "四、能量流",
       "invest": "五、投资收益",
-      "hw": "六、华为储能额外收益"
+      "hw": "六、华为储能额外收益",
+      "caseTitle": "为 {{customer}} 的负荷画像配置 {{pv}} kWp + {{bess}} kWh 光储系统",
+      "caseSub": "案例定义：谁、为什么、怎么做",
+      "dispatchTitle": "储能每日围绕 {{spread}} {{sym}}/kWh 峰谷价差套利",
+      "dispatchSub": "代表月 15 分钟级调度曲线（{{month}}）",
+      "savingsTitleNew": "首年节省 {{v}}，占年度能源费用 {{pct}}%",
+      "savingsSub": "光伏自用、储能套利、需量削减与柴油替代四分量",
+      "flowTitle": "{{pct}}% 光伏发电在站内自消纳",
+      "flowSub": "年度能量流守恒视图（kWh）",
+      "investTitleNew": "静态回收期 {{years}} 年",
+      "investSub": "未折现累计现金流在第 {{y}} 年转正；十年 NPV {{npv}}",
+      "hwTitleNew": "华为硬件带来 {{v}} 十年 NPV 增量",
+      "hwSub": "更高可用能量与更低运维覆盖 CAPEX 溢价"
     },
     "hw": {
       "paramTitle": "华为 vs 行业平均：关键参数",
@@ -467,7 +498,46 @@
       "d3": "第 10 年 SOH {{hwSoh}}% vs {{indSoh}}%，衰减更慢；免人工上站均衡、免冷却液更换（行业方案按估值计入 OPEX）",
       "throughputTitle": "10 年放电吞吐对比",
       "savingTitle": "财务对比（同容量简化估算，10 年口径）",
-      "financeNote": "注：华为列为同容量简化估算（RTE×DOD×运行天数放大），非重新仿真。"
+      "financeNote": "注：华为列为同容量简化估算（RTE×DOD×运行天数放大），非重新仿真。",
+      "wf": {
+        "thrTitle": "十年放电吞吐归因（MWh）",
+        "npvTitle": "十年 NPV 归因",
+        "fRte": "效率 RTE",
+        "fDod": "放电深度",
+        "fDays": "运行天数",
+        "fSoh": "衰减 SOH",
+        "fOpex": "运维节省",
+        "fCapex": "CAPEX 溢价",
+        "wfBase": "行业基线",
+        "wfHw": "华为",
+        "conclusion": "华为硬件 CAPEX 溢价 {{premium}}，但更高的全寿命能量交付与更低运维使十年 NPV 由 {{from}} 增至 {{to}}，静态回收期由 {{pFrom}} 年缩短至 {{pTo}} 年。（归因按因子顺序逐步替换测算，顺序影响分项分配、不影响合计。）"
+      }
+    },
+    "tag": {
+      "cover": "封面",
+      "case": "01 · 案例定义",
+      "dispatch": "02 · 运行策略",
+      "savings": "03 · 节省明细",
+      "flow": "04 · 能量流",
+      "invest": "05 · 投资收益",
+      "hw": "06 · 硬件增益"
+    },
+    "who": {
+      "title": "谁",
+      "body": "客户：{{customer}}\n编制：{{company}}\n项目：{{project}}\n代表月：{{month}}"
+    },
+    "why": {
+      "title": "为何",
+      "body": "基线年度能源费用 {{baseline}}；年断电暴露约 {{hours}} 小时；峰谷价差 {{spread}} {{sym}}/kWh，需量电费另计。"
+    },
+    "how": {
+      "title": "如何",
+      "body": "{{pv}} kWp 光伏 + {{bess}} kWh / {{pcs}} kW 储能：光伏自用优先，储能峰谷套利并守卫合同需量，断电时支撑关键负荷。"
+    },
+    "flow": {
+      "reading1": "年发电 {{pv}} kWh = 站内自用 {{self}} + 储能充电 {{charge}} + 弃电 {{curtail}}。",
+      "reading2": "储能年充电 {{charge}} kWh、放电 {{discharge}} kWh，损耗 {{loss}} kWh（综合效率 {{rte}}%）。",
+      "reading3": "年负荷 {{load}} kWh 由电网、光伏直供与储能放电共同满足；电网电量占比由 {{before}}% 降至 {{after}}%。"
     }
   },
   "theme": {

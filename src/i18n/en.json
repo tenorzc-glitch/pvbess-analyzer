@@ -357,7 +357,19 @@
       "currencyNote": "All amounts in {{currency}}",
       "hwConfigTitle": "Huawei Reference Configuration (Est.)",
       "hwInv": "100 kW inverters × {{n}}",
-      "hwCab": "241 kWh ESS units × {{n}} ({{total}} kWh total)"
+      "hwCab": "241 kWh ESS units × {{n}} ({{total}} kWh total)",
+      "positioning": "PV + BESS cuts this facility's annual energy cost by {{pct}}%",
+      "headline": "The facility currently pays about {{baseline}} per year for energy, demand and diesel. A {{pv}} kWp PV array with {{bess}} kWh of storage delivers a year-1 net cash flow of about {{net}}, a {{payback}}-year simple payback and a 10-year NPV of about {{npv}}.",
+      "specPv": "PV Array",
+      "specInv": "PV Inverters",
+      "specBess": "Modeled BESS",
+      "specHwUnits": "HW ESS Units",
+      "metricNpv": "10-year NPV",
+      "metricPayback": "Simple payback",
+      "metricLcoe": "10-year LCOE",
+      "metricNetY1": "Year-1 net cash flow",
+      "methodNote": "Product-grade estimates; figures rounded",
+      "headlineTitle": "Investment headline"
     },
     "params": {
       "pvCap": "PV Capacity (kWp)",
@@ -438,7 +450,12 @@
       "cumCostTitle": "Cumulative Cost Comparison ({{years}} Years)",
       "cumCostConv": "Conventional (grid only)",
       "cumCostMicro": "PV+BESS Investment",
-      "cumCostBreakEven": "Break-even ≈ Year {{y}}"
+      "cumCostBreakEven": "Break-even ≈ Year {{y}}",
+      "paybackMark": "PAYBACK {{y}} YEARS\n{{yy}} years + ~{{mm}} months",
+      "colGross": "Gross benefit",
+      "colCumUndisc": "Cumulative (undisc.)",
+      "zoneNeg": "Investment not yet recovered",
+      "zonePos": "Net value creation"
     },
     "config": {
       "scheme": "Report Scheme",
@@ -449,7 +466,9 @@
       "companyPh": "e.g. ABC Energy Solutions",
       "repMonth": "Representative Month",
       "exportPdf": "Export PDF",
-      "exporting": "Generating PDF..."
+      "exporting": "Generating PDF...",
+      "currency": "Currency",
+      "fxRate": "FX rate (1 USD = X BRL)"
     },
     "sec": {
       "params": "1. System Parameters",
@@ -457,7 +476,19 @@
       "savings": "3. Savings Breakdown",
       "energyFlow": "4. Energy Flow",
       "invest": "5. Investment Returns",
-      "hw": "6. Additional Benefits with Huawei ESS"
+      "hw": "6. Additional Benefits with Huawei ESS",
+      "caseTitle": "A {{pv}} kWp PV + {{bess}} kWh BESS system sized for {{customer}}'s load profile",
+      "caseSub": "Case definition: who, why and how",
+      "dispatchTitle": "The battery arbitrages a {{spread}} {{sym}}/kWh peak-valley spread daily",
+      "dispatchSub": "Representative-month 15-minute dispatch profile ({{month}})",
+      "savingsTitleNew": "Year-1 savings reach {{v}} — {{pct}}% of the energy bill",
+      "savingsSub": "PV self-consumption, arbitrage, demand reduction and diesel displacement",
+      "flowTitle": "{{pct}}% of PV energy is self-consumed on site",
+      "flowSub": "Annual energy-flow balance (kWh)",
+      "investTitleNew": "Simple payback is {{years}} years",
+      "investSub": "Undiscounted cumulative cash flow crosses zero in year {{y}}; 10-year NPV is {{npv}}",
+      "hwTitleNew": "Huawei hardware adds {{v}} of 10-year NPV",
+      "hwSub": "Higher usable energy and lower OPEX more than offset the CAPEX premium"
     },
     "hw": {
       "paramTitle": "Huawei vs Industry Average: Key Parameters",
@@ -467,7 +498,46 @@
       "d3": "Year-10 SOH {{hwSoh}}% vs {{indSoh}}% (slower degradation); no on-site balancing visits, no coolant replacement (industry-avg estimates included in OPEX)",
       "throughputTitle": "10-Year Discharge Throughput",
       "savingTitle": "Financial Comparison (simplified same-capacity estimate, 10-year basis)",
-      "financeNote": "Note: HW column = simplified same-capacity estimate (scaled by RTE × DOD × operating days), not a re-simulation."
+      "financeNote": "Note: HW column = simplified same-capacity estimate (scaled by RTE × DOD × operating days), not a re-simulation.",
+      "wf": {
+        "thrTitle": "10-year discharge throughput attribution (MWh)",
+        "npvTitle": "10-year NPV attribution",
+        "fRte": "RTE",
+        "fDod": "DOD",
+        "fDays": "Op. days",
+        "fSoh": "SOH",
+        "fOpex": "OPEX saving",
+        "fCapex": "CAPEX premium",
+        "wfBase": "Industry baseline",
+        "wfHw": "Huawei",
+        "conclusion": "Huawei carries a {{premium}} CAPEX premium, but higher lifetime energy delivery and lower OPEX lift 10-year NPV from {{from}} to {{to}} and shorten payback from {{pFrom}} to {{pTo}} years. (Indicative attribution: factors applied sequentially; order affects the split, not the total.)"
+      }
+    },
+    "tag": {
+      "cover": "COVER",
+      "case": "01 · CASE",
+      "dispatch": "02 · DISPATCH",
+      "savings": "03 · SAVINGS",
+      "flow": "04 · ENERGY FLOW",
+      "invest": "05 · RETURNS",
+      "hw": "06 · HARDWARE EDGE"
+    },
+    "who": {
+      "title": "WHO",
+      "body": "Client: {{customer}}\nPrepared by: {{company}}\nProject: {{project}}\nRepresentative month: {{month}}"
+    },
+    "why": {
+      "title": "WHY",
+      "body": "Baseline annual energy cost is {{baseline}}; outage exposure is about {{hours}} hours per year; the peak-valley spread is {{spread}} {{sym}}/kWh plus demand charges."
+    },
+    "how": {
+      "title": "HOW",
+      "body": "{{pv}} kWp PV plus {{bess}} kWh / {{pcs}} kW BESS: PV self-consumption first, storage arbitrages the peak-valley spread and guards contract demand, and supports critical loads during outages."
+    },
+    "flow": {
+      "reading1": "Annual PV generation of {{pv}} kWh = on-site self-use {{self}} + battery charging {{charge}} + curtailment {{curtail}}.",
+      "reading2": "The battery charges {{charge}} kWh and discharges {{discharge}} kWh per year; losses are {{loss}} kWh (round-trip efficiency {{rte}}%).",
+      "reading3": "Annual load of {{load}} kWh is served by grid, direct PV and battery discharge; the grid share falls from {{before}}% to {{after}}%."
     }
   },
   "theme": {
