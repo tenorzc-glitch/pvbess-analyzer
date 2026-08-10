@@ -335,7 +335,12 @@
     "revenue10": "10 年总收益",
     "npv10": "NPV（10 年）",
     "throughput10": "10 年放电吞吐",
-    "noScenario": "未选择方案，无法计算 CAPEX 对比"
+    "noScenario": "未选择方案，无法计算 CAPEX 对比",
+    "brandManagement": "品牌管理",
+    "addBrand": "添加品牌",
+    "removeBrand": "删除品牌",
+    "exportExcel": "导出 Excel",
+    "financeCompare": "财务对比"
   },
   "report": {
     "title": "投资报告",
@@ -487,7 +492,7 @@
       "flowSub": "年度能量流守恒视图（kWh）",
       "investTitleNew": "静态回收期 {{years}} 年",
       "investSub": "未折现累计现金流在第 {{y}} 年转正；十年 NPV {{npv}}",
-      "hwTitleNew": "华为硬件带来 {{v}} 十年 NPV 增量",
+      "hwTitleNew": "{{brand}}硬件带来 {{v}} 十年 NPV 增量",
       "hwSub": "更高可用能量与更低运维覆盖 CAPEX 溢价"
     },
     "hw": {
@@ -510,7 +515,12 @@
         "fCapex": "CAPEX 溢价",
         "wfBase": "行业基线",
         "wfHw": "华为",
-        "conclusion": "华为硬件 CAPEX 溢价 {{premium}}，但更高的全寿命能量交付与更低运维使十年 NPV 由 {{from}} 增至 {{to}}，静态回收期由 {{pFrom}} 年缩短至 {{pTo}} 年。（归因按因子顺序逐步替换测算，顺序影响分项分配、不影响合计。）"
+        "conclusion": "{{brand}} CAPEX 溢价 {{premium}}，但更高的全寿命能量交付与更低运维使十年 NPV 由 {{from}} 增至 {{to}}，静态回收期由 {{pFrom}} 年缩短至 {{pTo}} 年。（归因按因子顺序逐步替换测算，顺序影响分项分配、不影响合计。）",
+        "fTransformer": "隔离变压器",
+        "fSocOffgrid": "离网 SOC 窗口",
+        "fBalancing": "人工均衡",
+        "fCoolant": "冷却液",
+        "fCalibration": "SOC 校准"
       }
     },
     "tag": {
@@ -617,7 +627,11 @@
       "scenarios": "方案",
       "finance": "财务指标",
       "cashflow": "现金流",
-      "hwCompare": "HW 对比"
+      "hwCompare": "HW 对比",
+      "loadCurve": "负荷曲线",
+      "pvCurve": "PV标幺曲线",
+      "tempCurve": "气温曲线",
+      "brandParams": "品牌参数"
     },
     "headers": {
       "key": "参数键",
@@ -683,7 +697,39 @@
       "opexYear1": "首年 OPEX",
       "revenue10": "10 年总收益",
       "npv10": "NPV（10 年）",
-      "throughput10": "10 年放电吞吐"
+      "throughput10": "10 年放电吞吐",
+      "dieselMinStable": "柴发最小稳定出力 (kW)",
+      "outageDays": "每月停电天数（逗号分隔×12）",
+      "outageMinutes": "每次停电时长 (min)",
+      "outageWindow": "停电窗口起始时刻 (HH:MM)",
+      "effectiveDays": "年有效运行天数",
+      "rainyMonths": "雨季/停产月份（逗号分隔）",
+      "rainyOutageDays": "各雨季月停运天数（逗号分隔）",
+      "maintenanceDays": "每月检修天数（逗号分隔×12）",
+      "stoppageLoadFactor": "停运日负荷系数",
+      "laborRate": "人工单价 (货币/人·h)",
+      "travelCost": "单次差旅费 (货币/次)",
+      "outageLossEnabled": "断电损失开关 (true/false)",
+      "dailyProductionValue": "日均产值 (货币/天)",
+      "lossRate": "损失率",
+      "greenPremiumEnabled": "绿电溢价开关 (true/false)",
+      "greenPremiumRate": "绿电溢价 (货币/kWh)",
+      "loadKw": "负荷 (kW)",
+      "pvPerUnit": "PV 标幺 (0~1)",
+      "ambientTemp": "室外气温 (°C)",
+      "fullPackageCost": "全包单价 (货币/kWh)",
+      "sohCurve": "SOH 衰减曲线（15 年）",
+      "socMinOffgrid": "离网最低 SOC",
+      "socMaxOffgrid": "离网最高 SOC",
+      "needsIsolationTransformer": "需要隔离变压器 (true/false)",
+      "transformerEfficiencyLoss": "变压器效率损失",
+      "needsManualBalancing": "需要人工均衡 (true/false)",
+      "needsCoolantReplacement": "需要更换冷却液 (true/false)",
+      "coolantIntervalYears": "冷却液更换周期 (年)",
+      "coolantCostPerEvent": "单次冷却液更换成本",
+      "autoCalibration": "自动校准 SOC (true/false)",
+      "calibrationVisitCost": "人工校准单次成本",
+      "calibrationIntervalMonths": "校准周期 (月)"
     },
     "cashflow": {
       "year": "年",

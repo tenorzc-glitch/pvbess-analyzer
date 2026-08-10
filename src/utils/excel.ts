@@ -1,10 +1,15 @@
 import ExcelJS from 'exceljs';
-import { InputParams, ScenarioConfig } from '../types';
+import { InputParams, ScenarioConfig, ProfileData, ProfileInterval, AmbientTempData } from '../types';
 import i18n from '../i18n';
 
 /**
  * 参数 sheet 行定义：dotted key + 标签 i18n key + 单位/说明（语言无关）
  * A 列 = 参数 key（隐藏列，A1 恒为 'key'，是导入解析的唯一依据 → 语言无关）
+ *
+ * 采集缺口补丁（模块A）：
+ * - 新增停电/运行日历/柴发最小出力/人工差旅/断电损失/绿电溢价/币种字段
+ * - 数组型字段（eventDaysPerMonth 等）在单元格内以英文逗号分隔，解析时拆分
+ * - 布尔型字段（enabled）以 true/false 文本解析
  */
 const PARAM_ROWS: Array<{ key: string; labelKey: string; unit?: string }> = [
   { key: 'pv.capacity_kWp', labelKey: 'excel.rows.pvCapacity', unit: 'kWp' },
@@ -16,6 +21,7 @@ const PARAM_ROWS: Array<{ key: string; labelKey: string; unit?: string }> = [
   { key: 'bess.socMin', labelKey: 'excel.rows.socMin' },
   { key: 'bess.socInitial', labelKey: 'excel.rows.socInitial' },
   { key: 'diesel.ratedPower_kW', labelKey: 'excel.rows.dieselRated', unit: 'kW' },
+  { key: 'diesel.minStablePower_kW', labelKey: 'excel.rows.dieselMinStable', unit: 'kW' },
   { key: 'diesel.fuelPrice_perL', labelKey: 'excel.rows.dieselPrice', unit: 'curr/L' },
   { key: 'grid.contractDemand_kW', labelKey: 'excel.rows.contractDemand', unit: 'kW' },
   { key: 'grid.demandCharge_perKW', labelKey: 'excel.rows.demandCharge', unit: 'curr/kW·mo' },
@@ -24,16 +30,60 @@ const PARAM_ROWS: Array<{ key: string; labelKey: string; unit?: string }> = [
   { key: 'grid.flatPrice_perkWh', labelKey: 'excel.rows.flatPrice', unit: 'curr/kWh' },
   { key: 'grid.peakPrice_perkWh', labelKey: 'excel.rows.peakPrice', unit: 'curr/kWh' },
   { key: 'grid.offPeakPrice_perkWh', labelKey: 'excel.rows.offPeakPrice', unit: 'curr/kWh' },
+  { key: 'grid.outage.eventDaysPerMonth', labelKey: 'excel.rows.outageDays', unit: 'comma-sep ×12' },
+  { key: 'grid.outage.eventMinutes', labelKey: 'excel.rows.outageMinutes', unit: 'min' },
+  { key: 'grid.outage.windowStart', labelKey: 'excel.rows.outageWindow', unit: 'HH:MM' },
+  { key: 'workDays.effectiveDaysPerYear', labelKey: 'excel.rows.effectiveDays', unit: 'days' },
+  { key: 'workDays.rainyMonths', labelKey: 'excel.rows.rainyMonths', unit: 'comma-sep' },
+  { key: 'workDays.rainyOutageDays', labelKey: 'excel.rows.rainyOutageDays', unit: 'comma-sep' },
+  { key: 'workDays.maintenanceDaysPerMonth', labelKey: 'excel.rows.maintenanceDays', unit: 'comma-sep ×12' },
+  { key: 'workDays.stoppageLoadFactor', labelKey: 'excel.rows.stoppageLoadFactor' },
   { key: 'capex.pvCost_perkW', labelKey: 'excel.rows.pvCost', unit: 'curr/kW' },
   { key: 'capex.bessCost_perkWh', labelKey: 'excel.rows.bessCost', unit: 'curr/kWh' },
   { key: 'opex.pvFixedOpexRate', labelKey: 'excel.rows.pvOpexRate' },
   { key: 'opex.bessFixedOpexRate', labelKey: 'excel.rows.bessOpexRate' },
+  { key: 'opex.laborRate', labelKey: 'excel.rows.laborRate', unit: 'curr/person·h' },
+  { key: 'opex.travelCost', labelKey: 'excel.rows.travelCost', unit: 'curr/trip' },
+  { key: 'outageLoss.enabled', labelKey: 'excel.rows.outageLossEnabled', unit: 'true | false' },
+  { key: 'outageLoss.dailyProductionValue', labelKey: 'excel.rows.dailyProductionValue', unit: 'curr/day' },
+  { key: 'outageLoss.lossRate', labelKey: 'excel.rows.lossRate' },
+  { key: 'greenPremium.enabled', labelKey: 'excel.rows.greenPremiumEnabled', unit: 'true | false' },
+  { key: 'greenPremium.premiumRate', labelKey: 'excel.rows.greenPremiumRate', unit: 'curr/kWh' },
   { key: 'financial.projectLife', labelKey: 'excel.rows.projectLife', unit: 'yr' },
   { key: 'financial.discountRate', labelKey: 'excel.rows.discountRate' },
   { key: 'financial.priceGrowth', labelKey: 'excel.rows.priceGrowth' },
   { key: 'financial.opexGrowth', labelKey: 'excel.rows.opexGrowth' },
   { key: 'financial.taxRate', labelKey: 'excel.rows.taxRate' },
+  { key: 'currency.code', labelKey: 'excel.rows.currencyCode', unit: 'BRL | USD | …' },
 ];
+
+/** 曲线 sheet 标识（A1 隐藏 key，语言无关） */
+const CURVE_SHEETS = [
+  { key: 'profile:load_kW', labelKey: 'excel.sheets.loadCurve', colLabelKey: 'excel.rows.loadKw' },
+  { key: 'profile:pvPerUnit', labelKey: 'excel.sheets.pvCurve', colLabelKey: 'excel.rows.pvPerUnit' },
+  { key: 'profile:ambientTemp', labelKey: 'excel.sheets.tempCurve', colLabelKey: 'excel.rows.ambientTemp' },
+] as const;
+
+const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** 数组型参数 key → 逗号分隔字符串互转 */
+const ARRAY_KEYS = new Set([
+  'grid.outage.eventDaysPerMonth',
+  'workDays.rainyMonths',
+  'workDays.rainyOutageDays',
+  'workDays.maintenanceDaysPerMonth',
+]);
+/** 布尔型参数 key → true/false 文本互转 */
+const BOOL_KEYS = new Set([
+  'outageLoss.enabled',
+  'greenPremium.enabled',
+]);
+/** 字符串型参数 key（不做数值转换） */
+const STRING_KEYS = new Set([
+  'grid.tariffType',
+  'grid.outage.windowStart',
+  'currency.code',
+]);
 
 /** 按 dotted path 取值 */
 function getPathValue(obj: any, path: string): any {
@@ -51,10 +101,34 @@ function setPathValue(obj: any, path: string, value: any): void {
   cur[keys[keys.length - 1]] = value;
 }
 
+/** 序列化为单元格值（数组→CSV 文本，布尔→true/false） */
+function serializeCell(key: string, value: any): any {
+  if (ARRAY_KEYS.has(key) && Array.isArray(value)) return value.join(',');
+  if (BOOL_KEYS.has(key)) return value ? 'true' : 'false';
+  return value;
+}
+
+/** 反序列化单元格值 */
+function deserializeCell(key: string, raw: any): any {
+  if (ARRAY_KEYS.has(key)) {
+    const parts = String(raw).split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
+    return parts.length > 0 ? parts : undefined;
+  }
+  if (BOOL_KEYS.has(key)) {
+    return String(raw).trim().toLowerCase() === 'true';
+  }
+  if (key === 'grid.tariffType') return String(raw).trim() === 'tou' ? 'tou' : 'flat';
+  if (STRING_KEYS.has(key)) return String(raw).trim();
+  if (typeof raw === 'string' && raw !== '' && !isNaN(Number(raw))) return Number(raw);
+  return raw;
+}
+
 /** 构建模板工作簿（标签按当前语言生成；A 列 key 隐藏，导入时语言无关） */
 export async function buildTemplateWorkbook(
   params: InputParams,
-  scenarios?: ScenarioConfig[]
+  scenarios?: ScenarioConfig[],
+  profile?: ProfileData | null,
+  ambientTemp?: AmbientTempData | null,
 ): Promise<ExcelJS.Workbook> {
   const t = i18n.t.bind(i18n);
   const workbook = new ExcelJS.Workbook();
@@ -64,22 +138,22 @@ export async function buildTemplateWorkbook(
   // Sheet 1: 参数（A=key 隐藏列为导入唯一依据）
   const paramSheet = workbook.addWorksheet(t('excel.sheets.params'));
   paramSheet.columns = [
-    { header: 'key', key: 'key', width: 32, hidden: true },
+    { header: 'key', key: 'key', width: 34, hidden: true },
     { header: t('excel.headers.label'), key: 'label', width: 36 },
-    { header: t('excel.headers.value'), key: 'value', width: 20 },
-    { header: t('excel.headers.unit'), key: 'unit', width: 16 },
+    { header: t('excel.headers.value'), key: 'value', width: 22 },
+    { header: t('excel.headers.unit'), key: 'unit', width: 18 },
   ];
   paramSheet.getRow(1).font = { bold: true };
   for (const row of PARAM_ROWS) {
     paramSheet.addRow({
       key: row.key,
       label: t(row.labelKey),
-      value: getPathValue(params, row.key),
+      value: serializeCell(row.key, getPathValue(params, row.key)),
       unit: row.unit ?? '',
     });
   }
 
-  // Sheet 2: 方案（预填当前 6 档真实值，指令⑧：模板自带合理数据）
+  // Sheet 2: 方案（预填当前 6 档真实值）
   const scenarioSheet = workbook.addWorksheet(t('excel.sheets.scenarios'));
   scenarioSheet.columns = [
     { header: 'id', key: 'id', width: 8 },
@@ -105,15 +179,44 @@ export async function buildTemplateWorkbook(
     });
   }
 
+  // Sheet 3-5: 曲线矩阵（96 行 × 12 月；A1=key 隐藏列为导入依据）
+  const curveData: Record<string, (m: number, slot: number) => number | ''> = {
+    'profile:load_kW': (m, slot) => profile?.[m]?.[slot]?.load_kW ?? '',
+    'profile:pvPerUnit': (m, slot) => profile?.[m]?.[slot]?.pvPerUnit ?? '',
+    'profile:ambientTemp': (m, slot) => ambientTemp?.profile?.[m]?.[slot] ?? '',
+  };
+  for (const cs of CURVE_SHEETS) {
+    const ws = workbook.addWorksheet(t(cs.labelKey));
+    // 隐藏 key 列
+    ws.getColumn(1).hidden = true;
+    ws.getCell('A1').value = cs.key;
+    ws.getCell('B1').value = 'time';
+    for (let m = 0; m < 12; m++) ws.getCell(1, 3 + m).value = `M${m + 1}`;
+    ws.getRow(1).font = { bold: true };
+    const getVal = curveData[cs.key];
+    for (let slot = 0; slot < 96; slot++) {
+      const hh = Math.floor(slot / 4);
+      const mm = (slot % 4) * 15;
+      ws.getCell(2 + slot, 2).value = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      for (let m = 0; m < 12; m++) {
+        ws.getCell(2 + slot, 3 + m).value = getVal(m, slot);
+      }
+    }
+    ws.getColumn(2).width = 10;
+    for (let m = 0; m < 12; m++) ws.getColumn(3 + m).width = 10;
+  }
+
   return workbook;
 }
 
 /** 生成并下载 Excel 模板 */
 export async function downloadExcelTemplate(
   params: InputParams,
-  scenarios?: ScenarioConfig[]
+  scenarios?: ScenarioConfig[],
+  profile?: ProfileData | null,
+  ambientTemp?: AmbientTempData | null,
 ): Promise<void> {
-  const workbook = await buildTemplateWorkbook(params, scenarios);
+  const workbook = await buildTemplateWorkbook(params, scenarios, profile, ambientTemp);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -128,30 +231,110 @@ export async function downloadExcelTemplate(
   URL.revokeObjectURL(url);
 }
 
-/** 解析上传的 Excel 文件，返回部分 InputParams（按 A 列 key 解析 → 语言无关） */
-export async function parseExcelUpload(file: File): Promise<Partial<InputParams>> {
+/** 上传解析结果：参数 + 可选曲线 */
+export interface ExcelUploadResult {
+  params: Partial<InputParams>;
+  profile?: ProfileData;
+  ambientTemp?: AmbientTempData;
+}
+
+/** 品牌参数 Excel 导出（每品牌一列 × 每参数一行） */
+export interface BrandExportRow {
+  labelKey: string;
+  get: (b: any) => string | number;
+}
+
+export const BRAND_EXPORT_ROWS: BrandExportRow[] = [
+  { labelKey: 'excel.rows.rte', get: (b) => b.rte },
+  { labelKey: 'excel.rows.dod', get: (b) => b.dod },
+  { labelKey: 'excel.rows.operatingDays', get: (b) => b.operatingDaysPerYear },
+  { labelKey: 'excel.rows.sohY10', get: (b) => b.sohCurve[9] ?? 0 },
+  { labelKey: 'excel.rows.sohCurve', get: (b) => b.sohCurve.map((v: number) => v.toFixed(3)).join(',') },
+  { labelKey: 'excel.rows.fullPackageCost', get: (b) => b.costPerKWh },
+  { labelKey: 'excel.rows.opexRate', get: (b) => b.opexRate },
+  { labelKey: 'excel.rows.socMinOffgrid', get: (b) => b.socMinOffgrid },
+  { labelKey: 'excel.rows.socMaxOffgrid', get: (b) => b.socMaxOffgrid },
+  { labelKey: 'excel.rows.needsIsolationTransformer', get: (b) => (b.needsIsolationTransformer ? 'true' : 'false') },
+  { labelKey: 'excel.rows.transformerEfficiencyLoss', get: (b) => b.transformerEfficiencyLoss },
+  { labelKey: 'excel.rows.needsManualBalancing', get: (b) => (b.needsManualBalancing ? 'true' : 'false') },
+  { labelKey: 'excel.rows.needsCoolantReplacement', get: (b) => (b.needsCoolantReplacement ? 'true' : 'false') },
+  { labelKey: 'excel.rows.coolantIntervalYears', get: (b) => b.coolantIntervalYears },
+  { labelKey: 'excel.rows.coolantCostPerEvent', get: (b) => b.coolantCostPerEvent },
+  { labelKey: 'excel.rows.autoCalibration', get: (b) => (b.autoCalibration ? 'true' : 'false') },
+  { labelKey: 'excel.rows.calibrationVisitCost', get: (b) => b.calibrationVisitCost },
+  { labelKey: 'excel.rows.calibrationIntervalMonths', get: (b) => b.calibrationIntervalMonths },
+];
+
+/** 生成品牌参数对比工作簿 */
+export async function buildBrandWorkbook(
+  brands: Array<{ id: string; label: string; params: any }>,
+): Promise<ExcelJS.Workbook> {
+  const t = i18n.t.bind(i18n);
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'PV-BESS Analyzer';
+  const ws = workbook.addWorksheet(t('excel.sheets.brandParams'));
+  ws.getCell('A1').value = 'brand_param';
+  ws.getCell('B1').value = t('excel.headers.label');
+  brands.forEach((b, i) => {
+    ws.getCell(1, 3 + i).value = b.label;
+  });
+  ws.getRow(1).font = { bold: true };
+  ws.getColumn(1).hidden = true;
+  ws.getColumn(2).width = 36;
+  brands.forEach((_b, i) => { ws.getColumn(3 + i).width = 16; });
+  BRAND_EXPORT_ROWS.forEach((row, ri) => {
+    ws.getCell(2 + ri, 1).value = row.labelKey;
+    ws.getCell(2 + ri, 2).value = t(row.labelKey);
+    brands.forEach((b, bi) => {
+      ws.getCell(2 + ri, 3 + bi).value = row.get(b.params);
+    });
+  });
+  return workbook;
+}
+
+/** 下载品牌参数 Excel */
+export async function downloadBrandExcel(
+  brands: Array<{ id: string; label: string; params: any }>,
+): Promise<void> {
+  const workbook = await buildBrandWorkbook(brands);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bess-brand-params.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/** 解析上传的 Excel 文件（按 A 列 key 解析 → 语言无关） */
+export async function parseExcelUpload(file: File): Promise<ExcelUploadResult> {
   const buffer = await file.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
-  return parseWorkbookParams(workbook);
+  return parseWorkbook(workbook);
 }
 
-/** 从工作簿解析参数（A1 === 'key' 定位参数表；抽离以便无头测试） */
-export function parseWorkbookParams(workbook: ExcelJS.Workbook): Partial<InputParams> {
+/** 从工作簿解析参数 + 曲线（抽离以便无头测试） */
+export function parseWorkbook(workbook: ExcelJS.Workbook): ExcelUploadResult {
   const t = i18n.t.bind(i18n);
 
-  // 语言无关定位：A1 === 'key' 的工作表即参数表
-  const sheet = workbook.worksheets.find(
+  // ── 参数表 ──
+  const paramSheet = workbook.worksheets.find(
     (ws) => String(ws.getCell('A1').value ?? '').trim() === 'key'
   );
-  if (!sheet) {
+  if (!paramSheet) {
     throw new Error(t('excel.errors.missingParamsSheet'));
   }
 
-  const result: any = {};
+  const params: any = {};
   const knownKeys = new Set(PARAM_ROWS.map((r) => r.key));
 
-  sheet.eachRow((row, rowNumber) => {
+  paramSheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return; // 跳过表头
     const key = String(row.getCell(1).value ?? '').trim();
     const value = row.getCell(3).value;
@@ -161,24 +344,69 @@ export function parseWorkbookParams(workbook: ExcelJS.Workbook): Partial<InputPa
     const raw = value && typeof value === 'object' && 'result' in (value as any)
       ? (value as any).result
       : value;
-
-    let parsed: any = raw;
     if (raw == null) return;
 
-    if (key === 'grid.tariffType') {
-      parsed = String(raw).trim() === 'tou' ? 'tou' : 'flat';
-    } else if (typeof raw === 'string' && raw !== '' && !isNaN(Number(raw))) {
-      parsed = Number(raw);
-    } else if (typeof raw === 'number') {
-      parsed = raw;
-    } else if (typeof raw === 'boolean') {
-      parsed = raw;
-    } else {
-      parsed = raw;
-    }
-
-    setPathValue(result, key, parsed);
+    const parsed = deserializeCell(key, raw);
+    if (parsed === undefined) return;
+    setPathValue(params, key, parsed);
   });
 
-  return result as Partial<InputParams>;
+  // ── 曲线表（可选）──
+  const readCurve = (sheetKey: string): number[][] | null => {
+    const ws = workbook.worksheets.find(
+      (s) => String(s.getCell('A1').value ?? '').trim() === sheetKey
+    );
+    if (!ws) return null;
+    const out: number[][] = [];
+    for (let m = 0; m < 12; m++) out.push([]);
+    for (let slot = 0; slot < 96; slot++) {
+      for (let m = 0; m < 12; m++) {
+        const raw = ws.getCell(2 + slot, 3 + m).value;
+        const v = raw != null && raw !== '' ? Number(raw) : NaN;
+        out[m].push(Number.isNaN(v) ? 0 : v);
+      }
+    }
+    return out;
+  };
+
+  const loadCurve = readCurve('profile:load_kW');
+  const pvCurve = readCurve('profile:pvPerUnit');
+  const tempCurve = readCurve('profile:ambientTemp');
+
+  let profile: ProfileData | undefined;
+  if (loadCurve) {
+    // 默认填充规则（决策点：上传曲线只需负荷列；其余自动生成）
+    const peak = Number(getPathValue(params, 'grid.peakPrice_perkWh') ?? 1.734);
+    const offpeak = Number(getPathValue(params, 'grid.offPeakPrice_perkWh') ?? 0.748);
+    profile = [];
+    for (let m = 0; m < 12; m++) {
+      const month: ProfileInterval[] = [];
+      for (let slot = 0; slot < 96; slot++) {
+        const h = slot / 4;
+        // 峰段 17:30–20:30 → slot 70–81
+        const isPeak = h >= 17.5 && h < 20.5;
+        month.push({
+          load_kW: loadCurve[m][slot],
+          pvPerUnit: pvCurve ? pvCurve[m][slot] : 0,
+          gridAvailable: true,
+          gridPrice: isPeak ? peak : offpeak,
+          daysInMonth: DAYS_PER_MONTH[m],
+        });
+      }
+      profile.push(month);
+    }
+  }
+
+  const ambientTemp: AmbientTempData | undefined = tempCurve
+    ? {
+        unit: '°C',
+        granularity: '15min × 96 points × 12 months',
+        note: 'uploaded via Excel template',
+        monthlyMean: [],
+        diurnalAmplitude: 0,
+        profile: tempCurve,
+      }
+    : undefined;
+
+  return { params, profile, ambientTemp };
 }

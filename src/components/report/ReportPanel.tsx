@@ -23,7 +23,8 @@ import { useParamsStore } from '../../store/useParamsStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { useReportStore } from '../../store/useReportStore';
 import { scenarioDisplayName } from '../../utils/scenario-name';
-import { BrandMap, FALLBACK_BRANDS, loadBrandParams, estimateHWFinance } from '../../utils/brand';
+import { useBrandStore } from '../../store/useBrandStore';
+import { estimateBrandFinanceAnchored, computeThroughput10Kwh } from '../../utils/brand';
 import { exportBlocksPDF } from '../../utils/pdf-blocks';
 import { createReportFx, DEFAULT_FX_RATE, ReportCurrencyCode } from '../../utils/report-fx';
 import {
@@ -97,18 +98,12 @@ export default function ReportPanel() {
   const [includeGreen, setIncludeGreen] = useState(params.greenPremium.enabled);
   const [includeOutage, setIncludeOutage] = useState(params.outageLoss.enabled);
   const [exporting, setExporting] = useState(false);
-  const [brands, setBrands] = useState<BrandMap>(FALLBACK_BRANDS);
   const reportRef = useRef<HTMLDivElement>(null);
+  // 多品牌（模块C）：报告章深入第一个勾选的对比品牌
+  const { brands: brandConfigs, activeCompareIds } = useBrandStore();
 
   // 展示层币种换算（引擎保持 BRL，仅此层换算）
   const fx = useMemo(() => createReportFx(displayCurrency, fxRate), [displayCurrency, fxRate]);
-
-  // 品牌参数：Supabase 优先，失败降级内置（与 ComparePanel 同口径）
-  useEffect(() => {
-    let cancelled = false;
-    loadBrandParams().then(({ brands: b }) => { if (!cancelled) setBrands(b); });
-    return () => { cancelled = true; };
-  }, []);
 
   // 方案：null = NPV 最优档
   const autoBest = useMemo(
@@ -120,8 +115,27 @@ export default function ReportPanel() {
   const fin = finResults?.find((r) => r.scenarioId === sid) ?? null;
   const scen = scenarios.find((s) => s.id === sid) ?? null;
   const monthResult = sim?.monthlyResults?.find((m) => m.month === repMonth);
-  // 华为对比：打开 Switch（报告页或对比页均可，共享 useReportStore）→ 报告含华为章（需求②）
-  const hw = includeHW && scen && fin ? estimateHWFinance(params, scen, fin, brands, sim) : null;
+  // 多品牌对比（模块C）：报告章深入第一个勾选的对比品牌（决策③：报告单品牌深入）
+  const reportBrand = useMemo(() => {
+    const baseline = brandConfigs.find((b) => b.isBaseline) ?? brandConfigs[0];
+    const target = brandConfigs.find((b) => !b.isBaseline && activeCompareIds.includes(b.id))
+      ?? brandConfigs.find((b) => b.id === 'HW');
+    return baseline && target ? { baseline, target } : null;
+  }, [brandConfigs, activeCompareIds]);
+  const hw = includeHW && scen && fin && reportBrand && sim
+    ? estimateBrandFinanceAnchored(
+        params, scen, fin, reportBrand.baseline.params, reportBrand.target.params, sim,
+        {
+          npv10: computeTenYearMetrics(fin, sim.annual.pv_kWh, params.financial.discountRate).npv10,
+          revenue10: computeTenYearMetrics(fin, sim.annual.pv_kWh, params.financial.discountRate).revenue10,
+          opexYear1: fin.cashflow.find((r) => r.year === 1)?.opex ?? 0,
+          throughput10: computeThroughput10Kwh(
+            sim.monthlyResults.reduce((s, m) => s + (m.totals.bessDischarge_kWh || 0), 0),
+            params.sohCurve,
+          ),
+        },
+      )
+    : null;
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -567,6 +581,7 @@ export default function ReportPanel() {
             <section data-pdf-block style={sectionStyle}>
               {secTag('report.tag.hw')}
               {secTitle('report.sec.hwTitleNew', 'report.sec.hwSub', {
+                brand: reportBrand!.target.label,
                 v: fx.money(hw.npv10 - tenYear.npv10),
               })}
               <HwSection
@@ -575,7 +590,9 @@ export default function ReportPanel() {
                 scen={scen}
                 fin={fin}
                 sim={sim}
-                brands={brands}
+                baseline={reportBrand!.baseline.params}
+                target={reportBrand!.target.params}
+                targetLabel={reportBrand!.target.label}
                 hw={hw}
                 tenYear={tenYear}
                 firstYearOpex={firstYear?.opex ?? 0}

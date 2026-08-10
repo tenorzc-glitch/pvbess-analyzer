@@ -11,7 +11,7 @@ import { ScenarioConfig } from '../../types/simulation';
 import { FinanceResult } from '../../types/finance';
 import { EngineScenarioResult } from '../../engine/types';
 import {
-  BrandMap, HWEstimate, computeFactorAttribution, computeThroughput10Kwh,
+  BrandParams, HWEstimate, computeFactorAttribution, computeThroughput10Kwh,
 } from '../../utils/brand';
 import { ReportFx, fmtMoneyShort } from '../../utils/report-fx';
 import { buildWaterfallOption, WaterfallItem } from '../../utils/report-charts';
@@ -24,7 +24,12 @@ interface HwSectionProps {
   scen: ScenarioConfig;
   fin: FinanceResult;
   sim: EngineScenarioResult;
-  brands: BrandMap;
+  /** 行业基准参数 */
+  baseline: BrandParams;
+  /** 对比目标品牌参数（报告章只深入一个选定品牌） */
+  target: BrandParams;
+  /** 目标品牌显示名（如 HW / Brand X） */
+  targetLabel: string;
   hw: HWEstimate;
   tenYear: { npv10: number; revenue10: number };
   firstYearOpex: number;
@@ -32,18 +37,22 @@ interface HwSectionProps {
 }
 
 const FACTOR_KEY: Record<string, string> = {
-  rte: 'report.hw.wf.fRte', dod: 'report.hw.wf.fDod', days: 'report.hw.wf.fDays',
-  soh: 'report.hw.wf.fSoh', opex: 'report.hw.wf.fOpex', capex: 'report.hw.wf.fCapex',
+  rte: 'report.hw.wf.fRte', transformer: 'report.hw.wf.fTransformer',
+  dod: 'report.hw.wf.fDod', socOffgrid: 'report.hw.wf.fSocOffgrid',
+  days: 'report.hw.wf.fDays', soh: 'report.hw.wf.fSoh',
+  opex: 'report.hw.wf.fOpex', balancing: 'report.hw.wf.fBalancing',
+  coolant: 'report.hw.wf.fCoolant', calibration: 'report.hw.wf.fCalibration',
+  capex: 'report.hw.wf.fCapex',
 };
 
 export default function HwSection(p: HwSectionProps) {
   const { t, fx } = p;
-  const ind = p.brands.industry_avg;
-  const hwB = p.brands.HW;
+  const ind = p.baseline;
+  const hwB = p.target;
   const pct = (v: number) => (v * 100).toFixed(0);
   const sohY10 = (arr: number[]) => arr[9] ?? 0;
 
-  const att = computeFactorAttribution(p.params, p.scen, p.fin, p.brands, p.sim);
+  const att = computeFactorAttribution(p.params, p.scen, p.fin, ind, hwB, p.sim);
 
   // 瀑布端点锚定引擎口径：归因模型（简化口径）的行业基线与引擎 NPV10/吞吐有差，
   // 端点改用引擎一致值（tenYear.npv10 / params.sohCurve 吞吐），各因子 delta 按比例缩放——
@@ -61,7 +70,7 @@ export default function HwSection(p: HwSectionProps) {
     ...att.steps.filter((s) => Math.abs(s.dThroughput) > 1e-9).map((s) => ({
       key: s.factor, label: t(FACTOR_KEY[s.factor]), value: +((s.dThroughput * thrScale) / 1000).toFixed(1), kind: 'delta' as const,
     })),
-    { key: 'hw', label: t('report.hw.wf.wfHw'), value: +(p.hw.throughput10 / 1000).toFixed(1), kind: 'end' },
+    { key: 'hw', label: p.targetLabel, value: +(p.hw.throughput10 / 1000).toFixed(1), kind: 'end' },
   ];
   // ── NPV 瀑布（展示币种）：全 6 因子 ──
   const npvItems: WaterfallItem[] = [
@@ -69,7 +78,7 @@ export default function HwSection(p: HwSectionProps) {
     ...att.steps.map((s) => ({
       key: s.factor, label: t(FACTOR_KEY[s.factor]), value: +fx.to(s.dNpv * npvScale).toFixed(0), kind: 'delta' as const,
     })),
-    { key: 'hw', label: t('report.hw.wf.wfHw'), value: +fx.to(p.hw.npv10).toFixed(0), kind: 'end' },
+    { key: 'hw', label: p.targetLabel, value: +fx.to(p.hw.npv10).toFixed(0), kind: 'end' },
   ];
 
   const paramRows = [
@@ -83,7 +92,7 @@ export default function HwSection(p: HwSectionProps) {
   const brandCols = [
     { title: t('common.metric'), dataIndex: 'metric', key: 'metric' },
     { title: t('compare.industry'), dataIndex: 'industry', key: 'industry', align: 'right' as const },
-    { title: t('compare.hw'), dataIndex: 'hw', key: 'hw', align: 'right' as const },
+    { title: p.targetLabel, dataIndex: 'hw', key: 'hw', align: 'right' as const },
   ];
 
   const finRows = [
@@ -96,7 +105,7 @@ export default function HwSection(p: HwSectionProps) {
   const finCols = [
     { title: t('common.metric'), dataIndex: 'metric', key: 'metric' },
     { title: t('compare.industry'), dataIndex: 'industry', key: 'industry', align: 'right' as const },
-    { title: t('compare.hw'), dataIndex: 'hw', key: 'hw', align: 'right' as const },
+    { title: p.targetLabel, dataIndex: 'hw', key: 'hw', align: 'right' as const },
     {
       title: 'Δ', dataIndex: 'delta', key: 'delta', align: 'right' as const,
       render: (v: string) => <span style={{ fontWeight: 700, color: '#722ed1' }}>{v}</span>,
@@ -134,6 +143,7 @@ export default function HwSection(p: HwSectionProps) {
         </div>
         <div style={{ fontSize: 12.5, color: '#ffffff', lineHeight: 1.9 }}>
           {t('report.hw.wf.conclusion', {
+            brand: p.targetLabel,
             premium: fx.money(p.hw.capex - p.fin.capex),
             from: fx.money(p.tenYear.npv10),
             to: fx.money(p.hw.npv10),

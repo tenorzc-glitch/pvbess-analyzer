@@ -335,7 +335,12 @@
     "revenue10": "10-Year Total Revenue",
     "npv10": "NPV (10-Year)",
     "throughput10": "10-Year Discharge Throughput",
-    "noScenario": "No scenario selected; cannot compute CAPEX comparison"
+    "noScenario": "No scenario selected; cannot compute CAPEX comparison",
+    "brandManagement": "Brand Management",
+    "addBrand": "Add Brand",
+    "removeBrand": "Remove brand",
+    "exportExcel": "Export Excel",
+    "financeCompare": "Financial Comparison"
   },
   "report": {
     "title": "Investment Report",
@@ -487,7 +492,7 @@
       "flowSub": "Annual energy-flow balance (kWh)",
       "investTitleNew": "Simple payback is {{years}} years",
       "investSub": "Undiscounted cumulative cash flow crosses zero in year {{y}}; 10-year NPV is {{npv}}",
-      "hwTitleNew": "Huawei hardware adds {{v}} of 10-year NPV",
+      "hwTitleNew": "{{brand}} hardware adds {{v}} of 10-year NPV",
       "hwSub": "Higher usable energy and lower OPEX more than offset the CAPEX premium"
     },
     "hw": {
@@ -510,7 +515,12 @@
         "fCapex": "CAPEX premium",
         "wfBase": "Industry baseline",
         "wfHw": "Huawei",
-        "conclusion": "Huawei carries a {{premium}} CAPEX premium, but higher lifetime energy delivery and lower OPEX lift 10-year NPV from {{from}} to {{to}} and shorten payback from {{pFrom}} to {{pTo}} years. (Indicative attribution: factors applied sequentially; order affects the split, not the total.)"
+        "conclusion": "{{brand}} carries a {{premium}} CAPEX premium, but higher lifetime energy delivery and lower OPEX lift 10-year NPV from {{from}} to {{to}} and shorten payback from {{pFrom}} to {{pTo}} years. (Indicative attribution: factors applied sequentially; order affects the split, not the total.)",
+        "fTransformer": "Isolation transformer",
+        "fSocOffgrid": "Off-grid SOC window",
+        "fBalancing": "Manual balancing",
+        "fCoolant": "Coolant",
+        "fCalibration": "SOC calibration"
       }
     },
     "tag": {
@@ -617,7 +627,11 @@
       "scenarios": "Scenarios",
       "finance": "Financial Metrics",
       "cashflow": "Cash Flow",
-      "hwCompare": "HW Comparison"
+      "hwCompare": "HW Comparison",
+      "loadCurve": "Load Curve",
+      "pvCurve": "PV Per-unit Curve",
+      "tempCurve": "Temperature Curve",
+      "brandParams": "Brand Params"
     },
     "headers": {
       "key": "Key",
@@ -683,7 +697,39 @@
       "opexYear1": "Year-1 OPEX",
       "revenue10": "10-Year Total Revenue",
       "npv10": "NPV (10-Year)",
-      "throughput10": "10-Year Discharge Throughput"
+      "throughput10": "10-Year Discharge Throughput",
+      "dieselMinStable": "Diesel Min Stable Power (kW)",
+      "outageDays": "Outage Days per Month (comma-sep ×12)",
+      "outageMinutes": "Outage Duration (min)",
+      "outageWindow": "Outage Window Start (HH:MM)",
+      "effectiveDays": "Effective Working Days / Year",
+      "rainyMonths": "Rainy / Shutdown Months (comma-sep)",
+      "rainyOutageDays": "Rainy-Month Shutdown Days (comma-sep)",
+      "maintenanceDays": "Maintenance Days per Month (comma-sep ×12)",
+      "stoppageLoadFactor": "Stoppage Load Factor",
+      "laborRate": "Labor Rate (curr/person·h)",
+      "travelCost": "Travel Cost (curr/trip)",
+      "outageLossEnabled": "Outage Loss Enabled (true/false)",
+      "dailyProductionValue": "Daily Production Value (curr/day)",
+      "lossRate": "Loss Rate",
+      "greenPremiumEnabled": "Green Premium Enabled (true/false)",
+      "greenPremiumRate": "Green Premium (curr/kWh)",
+      "loadKw": "Load (kW)",
+      "pvPerUnit": "PV Per-unit (0~1)",
+      "ambientTemp": "Ambient Temperature (°C)",
+      "fullPackageCost": "Full-package Cost (curr/kWh)",
+      "sohCurve": "SOH Curve (15yr)",
+      "socMinOffgrid": "Off-grid Min SOC",
+      "socMaxOffgrid": "Off-grid Max SOC",
+      "needsIsolationTransformer": "Needs Isolation Transformer (true/false)",
+      "transformerEfficiencyLoss": "Transformer Efficiency Loss",
+      "needsManualBalancing": "Needs Manual Balancing (true/false)",
+      "needsCoolantReplacement": "Needs Coolant Replacement (true/false)",
+      "coolantIntervalYears": "Coolant Interval (yr)",
+      "coolantCostPerEvent": "Coolant Cost per Event",
+      "autoCalibration": "Auto SOC Calibration (true/false)",
+      "calibrationVisitCost": "Calibration Visit Cost",
+      "calibrationIntervalMonths": "Calibration Interval (months)"
     },
     "cashflow": {
       "year": "Year",

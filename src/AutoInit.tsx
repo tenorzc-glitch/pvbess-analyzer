@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from './store/useProjectStore';
 import { useProfileStore } from './store/useProfileStore';
 import { useAuth } from './hooks/useAuth';
-import { ProfileData } from './types';
+import { ProfileData, AmbientTempData } from './types';
 import i18n from './i18n';
 
 /** 演示项目的历史名称（用于自动重命名迁移） */
@@ -13,7 +13,7 @@ const LEGACY_DEMO_NAMES = ['巴西咖啡农场 500kWp', 'Brazil Coffee Farm 500k
 export default function AutoInit() {
   const navigate = useNavigate();
   const { loadProjects } = useProjectStore();
-  const { setProfile } = useProfileStore();
+  const { setProfile, setAmbientTemp } = useProfileStore();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -40,9 +40,13 @@ export default function AutoInit() {
       }
     });
 
-    // 加载 profile
-    loadProfile().then(setProfile).catch(() => {
+    // 加载 profile + 气温（仅数据层）
+    loadProfileWithTemp().then(({ profile, ambientTemp }) => {
+      setProfile(profile);
+      setAmbientTemp(ambientTemp);
+    }).catch(() => {
       setProfile(builtinProfile());
+      setAmbientTemp(null);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, i18n.language]);
@@ -50,16 +54,22 @@ export default function AutoInit() {
   return null;
 }
 
-async function loadProfile(): Promise<ProfileData> {
+async function loadProfileWithTemp(): Promise<{ profile: ProfileData; ambientTemp: AmbientTempData | null }> {
   // 尝试从测试数据加载
   try {
     const res = await fetch('/data/brazil_test_data.json');
     const data = await res.json();
-    if (data.profile && Array.isArray(data.profile) && data.profile.length === 12) {
-      return data.profile;
-    }
+    const profile: ProfileData | null =
+      data.profile && Array.isArray(data.profile) && data.profile.length === 12
+        ? data.profile
+        : null;
+    const ambientTemp: AmbientTempData | null =
+      data.ambientTemp && Array.isArray(data.ambientTemp.profile) && data.ambientTemp.profile.length === 12
+        ? data.ambientTemp
+        : null;
+    if (profile) return { profile, ambientTemp };
   } catch { /* fall through */ }
-  return builtinProfile();
+  return { profile: builtinProfile(), ambientTemp: null };
 }
 
 function builtinProfile(): ProfileData {

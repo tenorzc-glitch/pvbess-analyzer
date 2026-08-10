@@ -7,6 +7,7 @@ import {
 import { InfoCircleOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useParamsStore, DEFAULT_PARAMS } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
+import { useProfileStore } from '../../store/useProfileStore';
 import { ScenarioConfig } from '../../types';
 import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
 
@@ -43,7 +44,8 @@ export default function InputsPanel() {
     (outageCfg?.eventMinutes ?? 0) / 60;
 
   const handleDownloadTemplate = () => {
-    downloadExcelTemplate(params, scenarios).catch((err) => {
+    const { profile, ambientTemp } = useProfileStore.getState();
+    downloadExcelTemplate(params, scenarios, profile, ambientTemp).catch((err) => {
       console.error(err);
       message.error(t('params.downloadTemplate') + ' failed');
     });
@@ -54,8 +56,11 @@ export default function InputsPanel() {
     if (!file) return;
     setUploading(true);
     try {
-      const parsed = await parseExcelUpload(file);
-      updateParams(parsed);
+      const { params: parsedParams, profile, ambientTemp } = await parseExcelUpload(file);
+      updateParams(parsedParams);
+      // 上传的曲线数据（可选）：负荷曲线直接进 profile store，气温进 ambientTemp
+      if (profile) useProfileStore.getState().setProfile(profile);
+      if (ambientTemp) useProfileStore.getState().setAmbientTemp(ambientTemp);
       message.success(t('params.uploadExcel') + ' OK');
     } catch (err) {
       console.error(err);

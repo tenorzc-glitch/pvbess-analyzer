@@ -10,6 +10,16 @@ export interface ProfileInterval {
 /** 12 个典型月日 × 96 个 15 分钟时段 */
 export type ProfileData = ProfileInterval[][];
 
+/** 室外气温数据（12 月 × 96 点，°C）——仅数据层，未接入引擎 */
+export interface AmbientTempData {
+  unit: string;
+  granularity: string;
+  note: string;
+  monthlyMean: number[];
+  diurnalAmplitude: number;
+  profile: number[][];
+}
+
 /** Profile 元信息 */
 export interface ProfileMeta {
   id: string;
