@@ -260,12 +260,12 @@ export default function FinancePanel() {
 
       {/* NPV 柱状图 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={npvChartOption} style={{ height: 300 }} />
+        <ReactECharts option={npvChartOption} style={{ height: 300 }} notMerge={true} />
       </Card>
 
       {/* 累计现金流 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={cashflowChartOption} style={{ height: 300 }} />
+        <ReactECharts option={cashflowChartOption} style={{ height: 300 }} notMerge={true} />
       </Card>
 
       {/* 断电损失 */}
@@ -289,7 +289,7 @@ export default function FinancePanel() {
               />
             </Col>
             <Col span={12}>
-              <ReactECharts option={outageChartOption} style={{ height: 120 }} />
+              <ReactECharts option={outageChartOption} style={{ height: 120 }} notMerge={true} />
             </Col>
           </Row>
         </Card>

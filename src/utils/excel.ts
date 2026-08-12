@@ -240,32 +240,35 @@ export interface ExcelUploadResult {
 
 /** 品牌参数 Excel 导出（每品牌一列 × 每参数一行） */
 export interface BrandExportRow {
+  /** 参数字段名（导入时按此回写，语言无关） */
+  field: string;
   labelKey: string;
   get: (b: any) => string | number;
 }
 
 export const BRAND_EXPORT_ROWS: BrandExportRow[] = [
-  { labelKey: 'excel.rows.rte', get: (b) => b.rte },
-  { labelKey: 'excel.rows.dod', get: (b) => b.dod },
-  { labelKey: 'excel.rows.operatingDays', get: (b) => b.operatingDaysPerYear },
-  { labelKey: 'excel.rows.sohY10', get: (b) => b.sohCurve[9] ?? 0 },
-  { labelKey: 'excel.rows.sohCurve', get: (b) => b.sohCurve.map((v: number) => v.toFixed(3)).join(',') },
-  { labelKey: 'excel.rows.fullPackageCost', get: (b) => b.costPerKWh },
-  { labelKey: 'excel.rows.opexRate', get: (b) => b.opexRate },
-  { labelKey: 'excel.rows.socMinOffgrid', get: (b) => b.socMinOffgrid },
-  { labelKey: 'excel.rows.socMaxOffgrid', get: (b) => b.socMaxOffgrid },
-  { labelKey: 'excel.rows.needsIsolationTransformer', get: (b) => (b.needsIsolationTransformer ? 'true' : 'false') },
-  { labelKey: 'excel.rows.transformerEfficiencyLoss', get: (b) => b.transformerEfficiencyLoss },
-  { labelKey: 'excel.rows.needsManualBalancing', get: (b) => (b.needsManualBalancing ? 'true' : 'false') },
-  { labelKey: 'excel.rows.needsCoolantReplacement', get: (b) => (b.needsCoolantReplacement ? 'true' : 'false') },
-  { labelKey: 'excel.rows.coolantIntervalYears', get: (b) => b.coolantIntervalYears },
-  { labelKey: 'excel.rows.coolantCostPerEvent', get: (b) => b.coolantCostPerEvent },
-  { labelKey: 'excel.rows.autoCalibration', get: (b) => (b.autoCalibration ? 'true' : 'false') },
-  { labelKey: 'excel.rows.calibrationVisitCost', get: (b) => b.calibrationVisitCost },
-  { labelKey: 'excel.rows.calibrationIntervalMonths', get: (b) => b.calibrationIntervalMonths },
+  { field: 'rte', labelKey: 'excel.rows.rte', get: (b) => b.rte },
+  { field: 'dod', labelKey: 'excel.rows.dod', get: (b) => b.dod },
+  { field: 'operatingDaysPerYear', labelKey: 'excel.rows.operatingDays', get: (b) => b.operatingDaysPerYear },
+  { field: '_sohY10', labelKey: 'excel.rows.sohY10', get: (b) => b.sohCurve[9] ?? 0 },
+  { field: 'sohCurve', labelKey: 'excel.rows.sohCurve', get: (b) => b.sohCurve.map((v: number) => v.toFixed(3)).join(',') },
+  { field: 'costPerKWh', labelKey: 'excel.rows.epcUnitPrice', get: (b) => b.costPerKWh },
+  { field: 'opexRate', labelKey: 'excel.rows.opexRate', get: (b) => b.opexRate },
+  { field: 'warrantyCostPerKWhYear', labelKey: 'excel.rows.warrantyCost', get: (b) => b.warrantyCostPerKWhYear },
+  { field: 'socMinOffgrid', labelKey: 'excel.rows.socMinOffgrid', get: (b) => b.socMinOffgrid },
+  { field: 'socMaxOffgrid', labelKey: 'excel.rows.socMaxOffgrid', get: (b) => b.socMaxOffgrid },
+  { field: 'needsIsolationTransformer', labelKey: 'excel.rows.needsIsolationTransformer', get: (b) => (b.needsIsolationTransformer ? 'true' : 'false') },
+  { field: 'transformerEfficiencyLoss', labelKey: 'excel.rows.transformerEfficiencyLoss', get: (b) => b.transformerEfficiencyLoss },
+  { field: 'needsManualBalancing', labelKey: 'excel.rows.needsManualBalancing', get: (b) => (b.needsManualBalancing ? 'true' : 'false') },
+  { field: 'needsCoolantReplacement', labelKey: 'excel.rows.needsCoolantReplacement', get: (b) => (b.needsCoolantReplacement ? 'true' : 'false') },
+  { field: 'coolantIntervalYears', labelKey: 'excel.rows.coolantIntervalYears', get: (b) => b.coolantIntervalYears },
+  { field: 'coolantCostPerEvent', labelKey: 'excel.rows.coolantCostPerEvent', get: (b) => b.coolantCostPerEvent },
+  { field: 'autoCalibration', labelKey: 'excel.rows.autoCalibration', get: (b) => (b.autoCalibration ? 'true' : 'false') },
+  { field: 'calibrationVisitCost', labelKey: 'excel.rows.calibrationVisitCost', get: (b) => b.calibrationVisitCost },
+  { field: 'calibrationIntervalMonths', labelKey: 'excel.rows.calibrationIntervalMonths', get: (b) => b.calibrationIntervalMonths },
 ];
 
-/** 生成品牌参数对比工作簿 */
+/** 生成品牌参数对比工作簿（A 列隐藏字段名 = 导入依据；附计算逻辑 sheet 说明 OPEX 组成） */
 export async function buildBrandWorkbook(
   brands: Array<{ id: string; label: string; params: any }>,
 ): Promise<ExcelJS.Workbook> {
@@ -283,13 +286,74 @@ export async function buildBrandWorkbook(
   ws.getColumn(2).width = 36;
   brands.forEach((_b, i) => { ws.getColumn(3 + i).width = 16; });
   BRAND_EXPORT_ROWS.forEach((row, ri) => {
-    ws.getCell(2 + ri, 1).value = row.labelKey;
+    ws.getCell(2 + ri, 1).value = row.field;
     ws.getCell(2 + ri, 2).value = t(row.labelKey);
     brands.forEach((b, bi) => {
       ws.getCell(2 + ri, 3 + bi).value = row.get(b.params);
     });
   });
+
+  // 计算逻辑说明 sheet：OPEX 构成与单价来源（保持主界面简洁，细节在此呈现）
+  const doc = workbook.addWorksheet(t('excel.sheets.calcLogic'));
+  doc.getColumn(1).width = 34;
+  doc.getColumn(2).width = 90;
+  const lines: Array<[string, string]> = [
+    [t('excel.logic.opexTitle'), t('excel.logic.opexFormula')],
+    [t('excel.logic.fixedTitle'), t('excel.logic.fixedFormula')],
+    [t('excel.logic.balancingTitle'), t('excel.logic.balancingFormula')],
+    [t('excel.logic.coolantTitle'), t('excel.logic.coolantFormula')],
+    [t('excel.logic.calibrationTitle'), t('excel.logic.calibrationFormula')],
+    [t('excel.logic.warrantyTitle'), t('excel.logic.warrantyFormula')],
+    [t('excel.logic.gainTitle'), t('excel.logic.gainFormula')],
+    [t('excel.logic.noteTitle'), t('excel.logic.noteBody')],
+  ];
+  lines.forEach(([k, v], i) => {
+    doc.getCell(1 + i, 1).value = k;
+    doc.getCell(1 + i, 1).font = { bold: true };
+    doc.getCell(1 + i, 2).value = v;
+    doc.getCell(1 + i, 2).alignment = { wrapText: true, vertical: 'top' };
+  });
   return workbook;
+}
+
+/** 解析品牌参数工作簿（A1='brand_param' 定位；A 列字段名回写） */
+export function parseBrandWorkbook(
+  workbook: ExcelJS.Workbook,
+): Array<{ label: string; params: Record<string, any> }> {
+  const t = i18n.t.bind(i18n);
+  const ws = workbook.worksheets.find(
+    (s) => String(s.getCell('A1').value ?? '').trim() === 'brand_param'
+  );
+  if (!ws) throw new Error(t('excel.errors.missingBrandSheet'));
+
+  // 表头品牌列（第 3 列起）
+  const brandCols: Array<{ col: number; label: string }> = [];
+  for (let c = 3; c <= ws.columnCount; c++) {
+    const label = String(ws.getCell(1, c).value ?? '').trim();
+    if (label) brandCols.push({ col: c, label });
+  }
+  const result = brandCols.map((b) => ({ label: b.label, params: {} as Record<string, any> }));
+
+  const fieldMap = new Map(BRAND_EXPORT_ROWS.filter((r) => !r.field.startsWith('_')).map((r) => [r.field, r.field]));
+  ws.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const field = String(row.getCell(1).value ?? '').trim();
+    if (!fieldMap.has(field)) return;
+    brandCols.forEach((b, bi) => {
+      const raw0 = row.getCell(b.col).value;
+      const raw = raw0 && typeof raw0 === 'object' && 'result' in (raw0 as any) ? (raw0 as any).result : raw0;
+      if (raw == null || raw === '') return;
+      if (field === 'sohCurve') {
+        const arr = String(raw).split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
+        if (arr.length > 0) result[bi].params[field] = arr;
+      } else if (raw === 'true' || raw === 'false') {
+        result[bi].params[field] = raw === 'true';
+      } else if (!isNaN(Number(raw))) {
+        result[bi].params[field] = Number(raw);
+      }
+    });
+  });
+  return result;
 }
 
 /** 下载品牌参数 Excel */

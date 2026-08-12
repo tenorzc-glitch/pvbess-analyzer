@@ -344,7 +344,21 @@
     "saveParams": "Save params",
     "resetDefaults": "Reset to defaults",
     "savedMsg": "{{label}} params saved — future selections use these values",
-    "resetMsg": "{{label}} reset to default params"
+    "resetMsg": "{{label}} reset to default params",
+    "epcUnitPrice": "EPC Unit Price",
+    "epcUnitPriceTip": "BESS EPC full-package unit price (/kWh): battery containers, PCS, cabling, installation and transport.",
+    "perKwh": "/kWh",
+    "perKwhYear": "/kWh·yr",
+    "opexMetric": "Fixed O&M Rate",
+    "opexMetricTip": "Annual fixed O&M = BESS EPC total × this rate. Excludes balancing, coolant and calibration (itemized separately).",
+    "warrantyCost": "Warranty Annual Rate",
+    "warrantyCostTip": "Extended warranty fee = rate × BESS capacity (kWh), charged to OPEX annually.",
+    "balancingTip": "Whether manual on-site balancing is required. If yes: visits × (crew × hours × cabinets × labor rate + travel + equipment) is added to OPEX; unit prices are on the Inputs page (OPEX group) or the Calc Logic sheet of the exported Excel.",
+    "coolantTip": "Whether the liquid-cooling system needs periodic coolant replacement (default every 5 years, none in year 1).",
+    "calibrationTip": "Whether the BMS auto-calibrates SOC during long off-grid operation. If not: manual calibration visits are charged at (12 / interval months) × visit cost per year.",
+    "importExcel": "Import Excel",
+    "importedMsg": "Imported params for {{n}} brand(s)",
+    "exportedMsg": "Brand params exported (with calc-logic sheet)"
   },
   "report": {
     "title": "Investment Report",
@@ -524,7 +538,8 @@
         "fSocOffgrid": "Off-grid SOC window",
         "fBalancing": "Manual balancing",
         "fCoolant": "Coolant",
-        "fCalibration": "SOC calibration"
+        "fCalibration": "SOC calibration",
+        "fWarranty": "Warranty fee"
       }
     },
     "tag": {
@@ -635,7 +650,8 @@
       "loadCurve": "Load Curve",
       "pvCurve": "PV Per-unit Curve",
       "tempCurve": "Temperature Curve",
-      "brandParams": "Brand Params"
+      "brandParams": "Brand Params",
+      "calcLogic": "Calc Logic"
     },
     "headers": {
       "key": "Key",
@@ -733,7 +749,9 @@
       "coolantCostPerEvent": "Coolant Cost per Event",
       "autoCalibration": "Auto SOC Calibration (true/false)",
       "calibrationVisitCost": "Calibration Visit Cost",
-      "calibrationIntervalMonths": "Calibration Interval (months)"
+      "calibrationIntervalMonths": "Calibration Interval (months)",
+      "epcUnitPrice": "EPC Unit Price (curr/kWh)",
+      "warrantyCost": "Warranty Annual Rate (curr/kWh·yr)"
     },
     "cashflow": {
       "year": "Year",
@@ -749,9 +767,28 @@
       "cumDCF": "Cumulative DCF"
     },
     "errors": {
-      "missingParamsSheet": "Parameters worksheet not found (cell A1 should be 'key')"
+      "missingParamsSheet": "Parameters worksheet not found (cell A1 should be 'key')",
+      "missingBrandSheet": "Brand params sheet not found (cell A1 should be brand_param)"
     },
     "hwNote": "Note: HW column is a simplified estimate at the same capacity (efficiency/OPEX delta adjusted), not a re-simulation.",
-    "schemeName": "Scheme {{n}}"
+    "schemeName": "Scheme {{n}}",
+    "logic": {
+      "opexTitle": "Annual OPEX composition",
+      "opexFormula": "OPEX(year y) = fixed O&M + manual balancing + coolant replacement + SOC calibration + warranty fee, grown by opexGrowth",
+      "fixedTitle": "Fixed O&M",
+      "fixedFormula": "PV CAPEX × pvFixedOpexRate + BESS EPC total × brand opexRate",
+      "balancingTitle": "Manual balancing",
+      "balancingFormula": "If needsManualBalancing: visits/yr (2 in Y1-3, 4 from Y4) × (crew 2 × 6h/cabinet × ceil(BESS/261kWh) × labor rate + travel 3000 + equipment 1000)",
+      "coolantTitle": "Coolant replacement",
+      "coolantFormula": "If needsCoolantReplacement and y>1 and y % coolantIntervalYears == 0 (default 5): + coolantCostPerEvent (default 20000)",
+      "calibrationTitle": "SOC calibration",
+      "calibrationFormula": "If autoCalibration=false: (12 / calibrationIntervalMonths) × calibrationVisitCost per year (default 2 × 3000)",
+      "warrantyTitle": "Warranty fee",
+      "warrantyFormula": "warrantyCostPerKWhYear × BESS capacity (kWh), charged annually",
+      "gainTitle": "Revenue gain factor",
+      "gainFormula": "gain = effective-RTE ratio × usable-window ratio × operating-days ratio. Effective RTE = rte × (1 − 2% if transformer needed); window = (offgrid SOC max − min) × DOD",
+      "noteTitle": "Methodology note",
+      "noteBody": "Brand estimates are a simplified model (no re-simulation): industry simulation results scaled by gain; NPV/payback anchored to engine values. Factor attribution is sequential — order affects the split, not the total."
+    }
   }
 }

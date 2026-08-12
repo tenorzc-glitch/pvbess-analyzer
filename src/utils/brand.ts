@@ -44,6 +44,8 @@ export interface BrandParams {
   calibrationVisitCost: number;
   /** 校准周期（月） */
   calibrationIntervalMonths: number;
+  /** 质保年费单价（货币/kWh·年，按 BESS 容量计） */
+  warrantyCostPerKWhYear: number;
 }
 
 export type BrandKey = 'industry_avg' | 'HW';
@@ -82,6 +84,7 @@ export const FALLBACK_BRANDS: BrandMap = {
     autoCalibration: false,
     calibrationVisitCost: 3000,
     calibrationIntervalMonths: 6,
+    warrantyCostPerKWhYear: 20,
   },
   HW: {
     rte: 0.91,
@@ -104,6 +107,7 @@ export const FALLBACK_BRANDS: BrandMap = {
     autoCalibration: true,
     calibrationVisitCost: 3000,
     calibrationIntervalMonths: 6,
+    warrantyCostPerKWhYear: 25,
   },
 };
 
@@ -140,6 +144,7 @@ export function normalizeBrand(row: any, fallback: BrandParams): BrandParams {
     autoCalibration: bool(row.autoCalibration, fallback.autoCalibration),
     calibrationVisitCost: num(row.calibrationVisitCost, fallback.calibrationVisitCost),
     calibrationIntervalMonths: num(row.calibrationIntervalMonths, fallback.calibrationIntervalMonths),
+    warrantyCostPerKWhYear: num(row.warrantyCostPerKWhYear, fallback.warrantyCostPerKWhYear),
   };
 }
 
@@ -256,6 +261,8 @@ function brandOpexYear(
   if (!brand.autoCalibration) {
     opex += (12 / brand.calibrationIntervalMonths) * brand.calibrationVisitCost;
   }
+  // 质保年费 = 单价 × BESS 容量
+  opex += (brand.warrantyCostPerKWhYear ?? 0) * scenario.bessCapacity_kWh;
   return opex;
 }
 
@@ -389,10 +396,10 @@ export function estimateBrandFinanceAnchored(
  */
 export type AttributionFactor =
   | 'rte' | 'transformer' | 'dod' | 'socOffgrid' | 'days' | 'soh'
-  | 'opex' | 'balancing' | 'coolant' | 'calibration' | 'capex';
+  | 'opex' | 'warranty' | 'balancing' | 'coolant' | 'calibration' | 'capex';
 export const ATTRIBUTION_ORDER: AttributionFactor[] = [
   'rte', 'transformer', 'dod', 'socOffgrid', 'days', 'soh',
-  'opex', 'balancing', 'coolant', 'calibration', 'capex',
+  'opex', 'warranty', 'balancing', 'coolant', 'calibration', 'capex',
 ];
 
 export interface FactorStep {
@@ -445,6 +452,7 @@ export function computeFactorAttribution(
     else if (f === 'days') m.operatingDaysPerYear = hwB.operatingDaysPerYear;
     else if (f === 'soh') m.sohCurve = [...hwB.sohCurve];
     else if (f === 'opex') m.opexRate = hwB.opexRate;
+    else if (f === 'warranty') m.warrantyCostPerKWhYear = hwB.warrantyCostPerKWhYear;
     else if (f === 'balancing') m.needsManualBalancing = hwB.needsManualBalancing;
     else if (f === 'coolant') {
       m.needsCoolantReplacement = hwB.needsCoolantReplacement;

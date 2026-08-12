@@ -3,12 +3,12 @@
  * - 参数对比表：每品牌一列（可编辑），18 项参数
  * - 财务对比：行业基准 vs 勾选品牌（多选），复用 estimateBrandFinance
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Card, Table, Typography, Row, Col, Statistic, Space, Tag, Button, Input,
   InputNumber, Switch, Checkbox, Popconfirm, Select, Tooltip, message,
 } from 'antd';
-import { DeleteOutlined, DownloadOutlined, SaveOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
@@ -20,7 +20,7 @@ import {
   loadBrandParams,
   estimateBrandFinanceAnchored, computeThroughput10Kwh,
 } from '../../utils/brand';
-import { downloadBrandExcel } from '../../utils/excel';
+import { downloadBrandExcel, parseBrandWorkbook } from '../../utils/excel';
 
 const { Text } = Typography;
 
@@ -42,30 +42,8 @@ export default function ComparePanel() {
   const { brands, activeCompareIds, addBrand, removeBrand, renameBrand, updateBrandParams, resetBrandParams, setActiveCompareIds } =
     useBrandStore();
   const [dataSource, setDataSource] = useState<'supabase' | 'fallback'>('fallback');
-  // 草稿语义：编辑先存草稿，"保存"才写入 store（persist），"恢复默认值"回退模板
-  const [drafts, setDrafts] = useState<Record<string, BrandParams>>({});
-
-  const getParams = (bc: BrandConfig): BrandParams => drafts[bc.id] ?? bc.params;
-  const isDirty = (bc: BrandConfig): boolean =>
-    !!drafts[bc.id] && JSON.stringify(drafts[bc.id]) !== JSON.stringify(bc.params);
-  const setDraft = (id: string, patch: Partial<BrandParams>) =>
-    setDrafts((d) => {
-      const base = d[id] ?? brands.find((b) => b.id === id)?.params;
-      if (!base) return d;
-      return { ...d, [id]: { ...base, ...patch } };
-    });
-  const saveDraft = (bc: BrandConfig) => {
-    const draft = drafts[bc.id];
-    if (!draft) return;
-    updateBrandParams(bc.id, draft);
-    setDrafts((d) => { const nd = { ...d }; delete nd[bc.id]; return nd; });
-    message.success(t('compare.savedMsg', { label: bc.label }));
-  };
-  const resetDraft = (bc: BrandConfig) => {
-    resetBrandParams(bc.id);
-    setDrafts((d) => { const nd = { ...d }; delete nd[bc.id]; return nd; });
-    message.info(t('compare.resetMsg', { label: bc.label }));
-  };
+  // 实时生效语义：编辑立即写入 store（persist），财务对比即时重算（需求②）
+  const brandFileRef = useRef<HTMLInputElement>(null);
 
   // 从 Supabase 读取品牌参数（仅 industry_avg / HW 两行）；其余品牌保留本地
   useEffect(() => {
@@ -145,11 +123,17 @@ export default function ComparePanel() {
   // ── 参数对比表 ──
   interface ParamRowDef {
     key: string;
-    label: string;
+    label: React.ReactNode;
     get: (p: BrandConfig['params']) => string | number;
     edit?: 'number' | 'percent' | 'bool';
     set?: (p: BrandConfig['params'], v: any) => Partial<BrandConfig['params']>;
   }
+  const tip = (label: string, tipKey: string) => (
+    <Space size={4}>
+      <span>{label}</span>
+      <Tooltip title={t(tipKey)}><InfoCircleOutlined style={{ color: '#8c8c8c', fontSize: 12 }} /></Tooltip>
+    </Space>
+  );
   const paramRows: ParamRowDef[] = [
     { key: 'rte', label: `${t('compare.rte')} (RTE)`, get: (p) => pct(p.rte), edit: 'percent', set: (_p, v) => ({ rte: v }) },
     { key: 'dod', label: t('compare.dod'), get: (p) => pct(p.dod), edit: 'percent', set: (_p, v) => ({ dod: v }) },
@@ -157,18 +141,19 @@ export default function ComparePanel() {
     { key: 'socMaxOffgrid', label: t('excel.rows.socMaxOffgrid'), get: (p) => pct(p.socMaxOffgrid), edit: 'percent', set: (_p, v) => ({ socMaxOffgrid: v }) },
     { key: 'days', label: t('compare.operatingDays'), get: (p) => p.operatingDaysPerYear, edit: 'number', set: (_p, v) => ({ operatingDaysPerYear: v }) },
     { key: 'sohY10', label: t('compare.sohY10'), get: (p) => pct(p.sohCurve[9] ?? 0) },
-    { key: 'cost', label: t('compare.fullPackageCost'), get: (p) => `${fmtM(p.costPerKWh)}`, edit: 'number', set: (_p, v) => ({ costPerKWh: v }) },
-    { key: 'opexRate', label: `OPEX ${t('common.metric')}`, get: (p) => pct(p.opexRate), edit: 'percent', set: (_p, v) => ({ opexRate: v }) },
+    { key: 'cost', label: tip(t('compare.epcUnitPrice'), 'compare.epcUnitPriceTip'), get: (p) => `${fmtM(p.costPerKWh)} ${t('compare.perKwh')}`, edit: 'number', set: (_p, v) => ({ costPerKWh: v }) },
+    { key: 'opexRate', label: tip(t('compare.opexMetric'), 'compare.opexMetricTip'), get: (p) => pct(p.opexRate), edit: 'percent', set: (_p, v) => ({ opexRate: v }) },
+    { key: 'warranty', label: tip(t('compare.warrantyCost'), 'compare.warrantyCostTip'), get: (p) => `${p.warrantyCostPerKWhYear} ${t('compare.perKwhYear')}`, edit: 'number', set: (_p, v) => ({ warrantyCostPerKWhYear: v }) },
     { key: 'transformer', label: t('excel.rows.needsIsolationTransformer'), get: (p) => (p.needsIsolationTransformer ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ needsIsolationTransformer: v }) },
     { key: 'transformerLoss', label: t('excel.rows.transformerEfficiencyLoss'), get: (p) => pct(p.transformerEfficiencyLoss), edit: 'percent', set: (_p, v) => ({ transformerEfficiencyLoss: v }) },
-    { key: 'balancing', label: t('excel.rows.needsManualBalancing'), get: (p) => (p.needsManualBalancing ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ needsManualBalancing: v }) },
-    { key: 'coolant', label: t('excel.rows.needsCoolantReplacement'), get: (p) => (p.needsCoolantReplacement ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ needsCoolantReplacement: v }) },
+    { key: 'balancing', label: tip(t('excel.rows.needsManualBalancing'), 'compare.balancingTip'), get: (p) => (p.needsManualBalancing ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ needsManualBalancing: v }) },
+    { key: 'coolant', label: tip(t('excel.rows.needsCoolantReplacement'), 'compare.coolantTip'), get: (p) => (p.needsCoolantReplacement ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ needsCoolantReplacement: v }) },
     { key: 'coolantInterval', label: t('excel.rows.coolantIntervalYears'), get: (p) => p.coolantIntervalYears, edit: 'number', set: (_p, v) => ({ coolantIntervalYears: v }) },
-    { key: 'autoCalib', label: t('excel.rows.autoCalibration'), get: (p) => (p.autoCalibration ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ autoCalibration: v }) },
+    { key: 'autoCalib', label: tip(t('excel.rows.autoCalibration'), 'compare.calibrationTip'), get: (p) => (p.autoCalibration ? '✓' : '—'), edit: 'bool', set: (_p, v) => ({ autoCalibration: v }) },
   ];
 
   const paramColumns = [
-    { title: t('common.metric'), dataIndex: 'label', key: 'label', width: 180, fixed: 'left' as const },
+    { title: t('common.metric'), dataIndex: 'label', key: 'label', width: 200, fixed: 'left' as const },
     ...brands.map((bc) => ({
       title: (
         <Space size={4}>
@@ -183,55 +168,53 @@ export default function ComparePanel() {
             />
           )}
           {bc.isBaseline && <Tag color="blue" style={{ fontSize: 10 }}>base</Tag>}
-          {!bc.isBaseline && (
-            <>
-              <Tooltip title={t('compare.saveParams')}>
-                <Button
-                  size="small"
-                  type={isDirty(bc) ? 'primary' : 'text'}
-                  icon={<SaveOutlined />}
-                  disabled={!isDirty(bc)}
-                  onClick={() => saveDraft(bc)}
-                />
-              </Tooltip>
-              <Tooltip title={t('compare.resetDefaults')}>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<ReloadOutlined />}
-                  onClick={() => resetDraft(bc)}
-                />
-              </Tooltip>
-            </>
-          )}
+          <Tooltip title={t('compare.resetDefaults')}>
+            <Button
+              size="small"
+              type="text"
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                resetBrandParams(bc.id);
+                message.info(t('compare.resetMsg', { label: bc.label }));
+              }}
+            />
+          </Tooltip>
         </Space>
       ),
       key: bc.id,
       align: 'right' as const,
       render: (_: unknown, row: ParamRowDef) => {
-        const p = getParams(bc);
+        const p = bc.params;
         const val = row.get(p);
-        if (!row.edit || bc.isBaseline) return <span>{val}</span>;
+        if (!row.edit) return <span>{val}</span>;
         if (row.edit === 'bool') {
           return (
             <Switch
               size="small"
               checked={val === '✓'}
-              onChange={(v) => setDraft(bc.id, row.set!(p, v))}
+              onChange={(v) => updateBrandParams(bc.id, row.set!(p, v))}
             />
           );
         }
-        const numVal = row.edit === 'percent' ? Number(String(val).replace('%', '')) : Number(val);
+        // 数值/百分比行直接用参数字段原值（% 行显示 0-100）
+        const rawMap: Record<string, number> = {
+          rte: p.rte * 100, dod: p.dod * 100, socMinOffgrid: p.socMinOffgrid * 100,
+          socMaxOffgrid: p.socMaxOffgrid * 100, days: p.operatingDaysPerYear,
+          cost: p.costPerKWh, opexRate: p.opexRate * 100, warranty: p.warrantyCostPerKWhYear,
+          transformerLoss: p.transformerEfficiencyLoss * 100, coolantInterval: p.coolantIntervalYears,
+        };
+        const rawVal = rawMap[row.key] ?? 0;
         return (
           <InputNumber
             size="small"
-            style={{ width: 80 }}
-            value={numVal}
+            style={{ width: 90 }}
+            value={rawVal}
             step={row.edit === 'percent' ? 1 : undefined}
+            suffix={row.edit === 'percent' ? '%' : undefined}
             onChange={(v) => {
               if (v == null) return;
               const raw = row.edit === 'percent' ? v / 100 : v;
-              setDraft(bc.id, row.set!(p, raw));
+              updateBrandParams(bc.id, row.set!(p, raw));
             }}
           />
         );
@@ -287,8 +270,33 @@ export default function ComparePanel() {
 
   const handleExportBrands = () => {
     downloadBrandExcel(brands.map((b) => ({ id: b.id, label: b.label, params: b.params })))
-      .then(() => message.success('OK'))
+      .then(() => message.success(t('compare.exportedMsg')))
       .catch((e) => message.error(String(e)));
+  };
+
+  // 导入品牌参数 Excel：按列头 label 匹配现有品牌，未匹配的列忽略
+  const handleImportBrands = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await file.arrayBuffer());
+      const parsed = parseBrandWorkbook(wb);
+      let applied = 0;
+      for (const col of parsed) {
+        const target = brands.find((b) => b.label === col.label);
+        if (target && Object.keys(col.params).length > 0) {
+          updateBrandParams(target.id, col.params);
+          applied++;
+        }
+      }
+      message.success(t('compare.importedMsg', { n: applied }));
+    } catch (err) {
+      message.error(String((err as Error)?.message || err));
+    } finally {
+      if (brandFileRef.current) brandFileRef.current.value = '';
+    }
   };
 
   return (
@@ -309,6 +317,16 @@ export default function ComparePanel() {
             <Button size="small" icon={<DownloadOutlined />} onClick={handleExportBrands}>
               {t('compare.exportExcel')}
             </Button>
+            <Button size="small" icon={<UploadOutlined />} onClick={() => brandFileRef.current?.click()}>
+              {t('compare.importExcel')}
+            </Button>
+            <input
+              ref={brandFileRef}
+              type="file"
+              accept=".xlsx"
+              style={{ display: 'none' }}
+              onChange={handleImportBrands}
+            />
             <Select
               size="small"
               style={{ width: 170 }}

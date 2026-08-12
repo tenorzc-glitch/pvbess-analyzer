@@ -344,7 +344,21 @@
     "saveParams": "保存参数",
     "resetDefaults": "恢复默认值",
     "savedMsg": "{{label}} 参数已保存，下次选取该品牌将按此参数运行",
-    "resetMsg": "{{label}} 已恢复默认参数"
+    "resetMsg": "{{label}} 已恢复默认参数",
+    "epcUnitPrice": "EPC 单价",
+    "epcUnitPriceTip": "储能系统 EPC 全包单价（/kWh），含电池舱、PCS、线缆、安装与运输。",
+    "perKwh": "/kWh",
+    "perKwhYear": "/kWh·年",
+    "opexMetric": "固定运维费率",
+    "opexMetricTip": "年固定运维费 = BESS EPC 总价 × 该费率。不含人工均衡、冷却液、校准等专项费用（逐项单列）。",
+    "warrantyCost": "质保年费单价",
+    "warrantyCostTip": "延保/质保年费 = 单价 × BESS 容量（kWh），按年计入 OPEX。",
+    "balancingTip": "是否需要人工上站均衡。是：按\"次数×(人数×工时×柜数×人工单价+差旅+设备)\"计入 OPEX，单价在录入页 OPEX 组或导出 Excel 的计算逻辑页可见。",
+    "coolantTip": "液冷系统是否需定期更换冷却液（默认 5 年/次，第 1 年不换）。",
+    "calibrationTip": "长期离网运行时 BMS 是否自动校准 SOC。否：需人工上站校准，按\"12/周期月数×单次成本\"计入年 OPEX。",
+    "importExcel": "导入 Excel",
+    "importedMsg": "已导入 {{n}} 个品牌的参数",
+    "exportedMsg": "品牌参数已导出（含计算逻辑说明页）"
   },
   "report": {
     "title": "投资报告",
@@ -524,7 +538,8 @@
         "fSocOffgrid": "离网 SOC 窗口",
         "fBalancing": "人工均衡",
         "fCoolant": "冷却液",
-        "fCalibration": "SOC 校准"
+        "fCalibration": "SOC 校准",
+        "fWarranty": "质保年费"
       }
     },
     "tag": {
@@ -635,7 +650,8 @@
       "loadCurve": "负荷曲线",
       "pvCurve": "PV标幺曲线",
       "tempCurve": "气温曲线",
-      "brandParams": "品牌参数"
+      "brandParams": "品牌参数",
+      "calcLogic": "计算逻辑"
     },
     "headers": {
       "key": "参数键",
@@ -733,7 +749,9 @@
       "coolantCostPerEvent": "单次冷却液更换成本",
       "autoCalibration": "自动校准 SOC (true/false)",
       "calibrationVisitCost": "人工校准单次成本",
-      "calibrationIntervalMonths": "校准周期 (月)"
+      "calibrationIntervalMonths": "校准周期 (月)",
+      "epcUnitPrice": "EPC 单价 (货币/kWh)",
+      "warrantyCost": "质保年费单价 (货币/kWh·年)"
     },
     "cashflow": {
       "year": "年",
@@ -749,9 +767,28 @@
       "cumDCF": "累计 DCF"
     },
     "errors": {
-      "missingParamsSheet": "未找到参数工作表（A1 单元格应为 key）"
+      "missingParamsSheet": "未找到参数工作表（A1 单元格应为 key）",
+      "missingBrandSheet": "未找到品牌参数工作表（A1 单元格应为 brand_param）"
     },
     "hwNote": "注：HW 列为同容量下的简化估算（效率/OPEX 差异调整），非重新仿真。",
-    "schemeName": "方案 {{n}}"
+    "schemeName": "方案 {{n}}",
+    "logic": {
+      "opexTitle": "年 OPEX 构成",
+      "opexFormula": "OPEX(年y) = 固定运维 + 人工均衡 + 冷却液更换 + SOC 校准 + 质保年费，随 opexGrowth 逐年增长",
+      "fixedTitle": "固定运维",
+      "fixedFormula": "PV CAPEX × pvFixedOpexRate + BESS EPC 总价 × 品牌 opexRate",
+      "balancingTitle": "人工均衡",
+      "balancingFormula": "needsManualBalancing=true 时：年次数（Y1-3 2 次 / Y4+ 4 次）×（人数 2 × 每柜工时 6h × 柜数 ceil(BESS/261kWh) × 人工单价 + 差旅 3000 + 设备 1000）",
+      "coolantTitle": "冷却液更换",
+      "coolantFormula": "needsCoolantReplacement=true 且 y>1 且 y 整除 coolantIntervalYears（默认 5）：+ coolantCostPerEvent（默认 20000）",
+      "calibrationTitle": "SOC 校准",
+      "calibrationFormula": "autoCalibration=false 时：每年 (12 / calibrationIntervalMonths) × calibrationVisitCost（默认 2 次 × 3000）",
+      "warrantyTitle": "质保年费",
+      "warrantyFormula": "warrantyCostPerKWhYear × BESS 容量（kWh），每年计入",
+      "gainTitle": "收益放大系数 gain",
+      "gainFormula": "gain = 有效RTE比 × 可用电量窗口比 × 运行天数比。有效RTE = rte ×（需变压器 ? 1−2% : 1）；窗口 =（离网SOC上限−下限）× DOD",
+      "noteTitle": "口径说明",
+      "noteBody": "品牌估算为简化模型（不重仿真）：以行业仿真结果为基线按 gain 缩放，NPV/回收期锚定引擎口径。分项归因按因子顺序替换，顺序影响分配不影响合计。"
+    }
   }
 }

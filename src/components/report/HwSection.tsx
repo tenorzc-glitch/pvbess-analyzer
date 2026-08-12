@@ -40,7 +40,7 @@ const FACTOR_KEY: Record<string, string> = {
   rte: 'report.hw.wf.fRte', transformer: 'report.hw.wf.fTransformer',
   dod: 'report.hw.wf.fDod', socOffgrid: 'report.hw.wf.fSocOffgrid',
   days: 'report.hw.wf.fDays', soh: 'report.hw.wf.fSoh',
-  opex: 'report.hw.wf.fOpex', balancing: 'report.hw.wf.fBalancing',
+  opex: 'report.hw.wf.fOpex', warranty: 'report.hw.wf.fWarranty', balancing: 'report.hw.wf.fBalancing',
   coolant: 'report.hw.wf.fCoolant', calibration: 'report.hw.wf.fCalibration',
   capex: 'report.hw.wf.fCapex',
 };

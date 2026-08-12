@@ -313,22 +313,22 @@ export default function ResultsPanel() {
             </Radio.Group>
           </Col>
         </Row>
-        <ReactECharts option={getDispatchOption()} style={{ height: 380 }} />
+        <ReactECharts option={getDispatchOption()} style={{ height: 380 }} notMerge={true} />
       </Card>
 
       {/* 分时电价（日尺度时跟随所选月份） */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={getTouChartOption()} style={{ height: 260 }} />
+        <ReactECharts option={getTouChartOption()} style={{ height: 260 }} notMerge={true} />
       </Card>
 
       {/* Sankey 能量流图 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={getSankeyOption()} style={{ height: 360 }} />
+        <ReactECharts option={getSankeyOption()} style={{ height: 360 }} notMerge={true} />
       </Card>
 
       {/* 月度节省费用 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={getMonthlySavingOption()} style={{ height: 300 }} />
+        <ReactECharts option={getMonthlySavingOption()} style={{ height: 300 }} notMerge={true} />
       </Card>
 
       {/* 方案对比表 */}
