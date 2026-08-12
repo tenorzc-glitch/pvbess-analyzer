@@ -143,7 +143,11 @@ export function normalizeBrand(row: any, fallback: BrandParams): BrandParams {
   };
 }
 
-/** 从 Supabase 读取品牌参数；失败返回内置默认值 */
+/** 从 Supabase 读取品牌参数；失败返回内置默认值
+ * 表结构：brand_params(id, name, display_name, params JSONB, ...)
+ * 行键读 name 列（旧代码误读 brand/key/id 导致静默跳过，2026-08 修复）；
+ * 参数嵌套在 params JSONB 中（旧代码直接把整行传给 normalizeBrand，永远 fallback）。
+ */
 export async function loadBrandParams(): Promise<{ brands: BrandMap; source: 'supabase' | 'fallback' }> {
   if (!isSupabaseConfigured() || !supabase) {
     return { brands: FALLBACK_BRANDS, source: 'fallback' };
@@ -152,11 +156,15 @@ export async function loadBrandParams(): Promise<{ brands: BrandMap; source: 'su
     const { data, error } = await supabase.from('brand_params').select('*');
     if (error || !data) throw error;
     const map: BrandMap = { ...FALLBACK_BRANDS };
+    let matched = 0;
     for (const row of data) {
-      const key = row?.brand ?? row?.key ?? row?.id;
-      if (key === 'industry_avg') map.industry_avg = normalizeBrand(row, FALLBACK_BRANDS.industry_avg);
-      else if (key === 'HW') map.HW = normalizeBrand(row, FALLBACK_BRANDS.HW);
+      const key = row?.name ?? row?.brand ?? row?.key;
+      const payload = row?.params && typeof row.params === 'object' ? row.params : row;
+      if (key === 'industry_avg') { map.industry_avg = normalizeBrand(payload, FALLBACK_BRANDS.industry_avg); matched++; }
+      else if (key === 'HW') { map.HW = normalizeBrand(payload, FALLBACK_BRANDS.HW); matched++; }
     }
+    // 一行都没匹配上视为读取失败（表结构漂移），回退内置
+    if (matched === 0) throw new Error('no known brand rows matched');
     return { brands: map, source: 'supabase' };
   } catch {
     return { brands: FALLBACK_BRANDS, source: 'fallback' };
