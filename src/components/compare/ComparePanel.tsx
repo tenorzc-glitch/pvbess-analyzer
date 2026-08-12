@@ -6,18 +6,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Card, Table, Typography, Row, Col, Statistic, Space, Tag, Button, Input,
-  InputNumber, Switch, Checkbox, Popconfirm, message,
+  InputNumber, Switch, Checkbox, Popconfirm, Select, Tooltip, message,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, DownloadOutlined, SaveOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useFinanceStore } from '../../store/useFinanceStore';
 import { useReportStore } from '../../store/useReportStore';
-import { useBrandStore, BrandConfig } from '../../store/useBrandStore';
+import { useBrandStore, BrandConfig, BRAND_TEMPLATES } from '../../store/useBrandStore';
+import { BrandParams } from '../../utils/brand';
 import {
-  BrandMap, FALLBACK_BRANDS, loadBrandParams,
-  estimateBrandFinance, estimateBrandFinanceAnchored, computeThroughput10Kwh,
+  loadBrandParams,
+  estimateBrandFinanceAnchored, computeThroughput10Kwh,
 } from '../../utils/brand';
 import { downloadBrandExcel } from '../../utils/excel';
 
@@ -38,9 +39,33 @@ export default function ComparePanel() {
   const { results: financeResults } = useFinanceStore();
   const setIncludeHW = useReportStore((s) => s.setIncludeHW);
 
-  const { brands, activeCompareIds, addBrand, removeBrand, renameBrand, updateBrandParams, setActiveCompareIds, setBrands } =
+  const { brands, activeCompareIds, addBrand, removeBrand, renameBrand, updateBrandParams, resetBrandParams, setActiveCompareIds } =
     useBrandStore();
   const [dataSource, setDataSource] = useState<'supabase' | 'fallback'>('fallback');
+  // 草稿语义：编辑先存草稿，"保存"才写入 store（persist），"恢复默认值"回退模板
+  const [drafts, setDrafts] = useState<Record<string, BrandParams>>({});
+
+  const getParams = (bc: BrandConfig): BrandParams => drafts[bc.id] ?? bc.params;
+  const isDirty = (bc: BrandConfig): boolean =>
+    !!drafts[bc.id] && JSON.stringify(drafts[bc.id]) !== JSON.stringify(bc.params);
+  const setDraft = (id: string, patch: Partial<BrandParams>) =>
+    setDrafts((d) => {
+      const base = d[id] ?? brands.find((b) => b.id === id)?.params;
+      if (!base) return d;
+      return { ...d, [id]: { ...base, ...patch } };
+    });
+  const saveDraft = (bc: BrandConfig) => {
+    const draft = drafts[bc.id];
+    if (!draft) return;
+    updateBrandParams(bc.id, draft);
+    setDrafts((d) => { const nd = { ...d }; delete nd[bc.id]; return nd; });
+    message.success(t('compare.savedMsg', { label: bc.label }));
+  };
+  const resetDraft = (bc: BrandConfig) => {
+    resetBrandParams(bc.id);
+    setDrafts((d) => { const nd = { ...d }; delete nd[bc.id]; return nd; });
+    message.info(t('compare.resetMsg', { label: bc.label }));
+  };
 
   // 从 Supabase 读取品牌参数（仅 industry_avg / HW 两行）；其余品牌保留本地
   useEffect(() => {
@@ -158,19 +183,41 @@ export default function ComparePanel() {
             />
           )}
           {bc.isBaseline && <Tag color="blue" style={{ fontSize: 10 }}>base</Tag>}
+          {!bc.isBaseline && (
+            <>
+              <Tooltip title={t('compare.saveParams')}>
+                <Button
+                  size="small"
+                  type={isDirty(bc) ? 'primary' : 'text'}
+                  icon={<SaveOutlined />}
+                  disabled={!isDirty(bc)}
+                  onClick={() => saveDraft(bc)}
+                />
+              </Tooltip>
+              <Tooltip title={t('compare.resetDefaults')}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<ReloadOutlined />}
+                  onClick={() => resetDraft(bc)}
+                />
+              </Tooltip>
+            </>
+          )}
         </Space>
       ),
       key: bc.id,
       align: 'right' as const,
       render: (_: unknown, row: ParamRowDef) => {
-        const val = row.get(bc.params);
+        const p = getParams(bc);
+        const val = row.get(p);
         if (!row.edit || bc.isBaseline) return <span>{val}</span>;
         if (row.edit === 'bool') {
           return (
             <Switch
               size="small"
               checked={val === '✓'}
-              onChange={(v) => updateBrandParams(bc.id, row.set!(bc.params, v))}
+              onChange={(v) => setDraft(bc.id, row.set!(p, v))}
             />
           );
         }
@@ -184,22 +231,12 @@ export default function ComparePanel() {
             onChange={(v) => {
               if (v == null) return;
               const raw = row.edit === 'percent' ? v / 100 : v;
-              updateBrandParams(bc.id, row.set!(bc.params, raw));
+              setDraft(bc.id, row.set!(p, raw));
             }}
           />
         );
       },
     })),
-    // 操作列
-    {
-      title: '',
-      key: '_ops',
-      width: 60,
-      render: (_: unknown, __: unknown, idx: number) =>
-        idx === 0 ? (
-          <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => addBrand()} />
-        ) : null,
-    },
   ];
 
   // ── 财务对比表 ──
@@ -272,9 +309,16 @@ export default function ComparePanel() {
             <Button size="small" icon={<DownloadOutlined />} onClick={handleExportBrands}>
               {t('compare.exportExcel')}
             </Button>
-            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => addBrand()}>
-              {t('compare.addBrand')}
-            </Button>
+            <Select
+              size="small"
+              style={{ width: 170 }}
+              placeholder={t('compare.addBrand')}
+              value={null}
+              onChange={(tplId) => { if (tplId) addBrand(tplId as string); }}
+              options={BRAND_TEMPLATES
+                .filter((tpl) => !brands.some((b) => b.id === tpl.id))
+                .map((tpl) => ({ value: tpl.id, label: `+ ${tpl.label}` }))}
+            />
           </Space>
         }
         style={{ marginBottom: 16 }}

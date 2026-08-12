@@ -340,7 +340,11 @@
     "addBrand": "添加品牌",
     "removeBrand": "删除品牌",
     "exportExcel": "导出 Excel",
-    "financeCompare": "财务对比"
+    "financeCompare": "财务对比",
+    "saveParams": "保存参数",
+    "resetDefaults": "恢复默认值",
+    "savedMsg": "{{label}} 参数已保存，下次选取该品牌将按此参数运行",
+    "resetMsg": "{{label}} 已恢复默认参数"
   },
   "report": {
     "title": "投资报告",

@@ -340,7 +340,11 @@
     "addBrand": "Add Brand",
     "removeBrand": "Remove brand",
     "exportExcel": "Export Excel",
-    "financeCompare": "Financial Comparison"
+    "financeCompare": "Financial Comparison",
+    "saveParams": "Save params",
+    "resetDefaults": "Reset to defaults",
+    "savedMsg": "{{label}} params saved — future selections use these values",
+    "resetMsg": "{{label}} reset to default params"
   },
   "report": {
     "title": "Investment Report",
