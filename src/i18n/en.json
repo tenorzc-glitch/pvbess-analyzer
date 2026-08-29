@@ -194,7 +194,8 @@
       "npv": "NPV",
       "payback": "Payback (yr)",
       "irr": "IRR"
-    }
+    },
+    "pvSyncTip": "Changing this syncs all scenarios and the simulation"
   },
   "results": {
     "title": "Simulation Results",

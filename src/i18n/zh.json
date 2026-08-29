@@ -194,7 +194,8 @@
       "npv": "NPV",
       "payback": "回收期(年)",
       "irr": "IRR"
-    }
+    },
+    "pvSyncTip": "修改此值会同步到全部方案档与仿真"
   },
   "results": {
     "title": "仿真结果",

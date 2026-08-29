@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Card, Row, Col, InputNumber, Button, Table, Typography, Spin, Empty, Select } from 'antd';
+import { useState, useEffect } from 'react';
+import { Card, Row, Col, InputNumber, Button, Table, Typography, Spin, Empty, Select, Tooltip } from 'antd';
+import { InfoCircleOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useParamsStore } from '../../store/useParamsStore';
+import { useSimulationStore } from '../../store/useSimulationStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { runSizingOptimization, SizingRecord, SizingResult } from '../../engine/sizing-engine';
 import { useTranslation } from 'react-i18next';
@@ -10,8 +12,9 @@ const { Title, Text } = Typography;
 
 export default function SizingPanel() {
   const { t } = useTranslation();
-  const { params } = useParamsStore();
+  const { params, updateParams } = useParamsStore();
   const { profile } = useProfileStore();
+  const { scenarios, setScenarios } = useSimulationStore();
 
   const [pvCapacity, setPvCapacity] = useState(params.pv.capacity_kWp);
   const [bessMin, setBessMin] = useState(0);
@@ -19,6 +22,20 @@ export default function SizingPanel() {
   const [step, setStep] = useState(200);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<SizingResult | null>(null);
+
+  // 外部（录入页/Excel 导入）改了 PV 容量时同步到本面板
+  useEffect(() => {
+    setPvCapacity(params.pv.capacity_kWp);
+  }, [params.pv.capacity_kWp]);
+
+  // PV 容量变更：写回 params + 同步全部方案档（与录入页同一口径，
+  // 否则"此处改 3000 但仿真仍按 500"——用户报告的症状）
+  const handlePvChange = (v: number | null) => {
+    const val = v ?? 500;
+    setPvCapacity(val);
+    updateParams({ pv: { ...params.pv, capacity_kWp: val } });
+    setScenarios(scenarios.map(s => ({ ...s, pvCapacity_kWp: val })));
+  };
 
   const handleRun = () => {
     if (!profile) return;
@@ -102,8 +119,13 @@ export default function SizingPanel() {
         <Title level={5}>{t('sizing.title')}</Title>
         <Row gutter={16} style={{ marginBottom: 12 }}>
           <Col span={6}>
-            <Text>{t('sizing.pvCapacity')}</Text>
-            <InputNumber value={pvCapacity} onChange={v => setPvCapacity(v || 500)} min={0} max={10000} style={{ width: '100%' }} />
+            <Text>
+              {t('sizing.pvCapacity')}
+              <Tooltip title={t('sizing.pvSyncTip')}>
+                <InfoCircleOutlined style={{ marginLeft: 4, color: '#8c8c8c', fontSize: 12 }} />
+              </Tooltip>
+            </Text>
+            <InputNumber value={pvCapacity} onChange={handlePvChange} min={0} max={10000} style={{ width: '100%' }} />
           </Col>
           <Col span={6}>
             <Text>{t('sizing.bessMin')}</Text>
