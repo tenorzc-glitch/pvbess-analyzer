@@ -79,6 +79,11 @@ export default function InputsPanel() {
     }
     obj[path[path.length - 1]] = value;
     updateParams(newParams);
+    // 联动：顶部 PV 容量变更时同步全部方案档（引擎按 scenario.pvCapacity_kWp 仿真，
+    // 不同步会导致"改了 3000 但峰值仍 300kW"的口径错位）
+    if (path.length === 2 && path[0] === 'pv' && path[1] === 'capacity_kWp' && typeof value === 'number') {
+      setScenarios(scenarios.map(s => ({ ...s, pvCapacity_kWp: value })));
+    }
   };
 
   const updateScenario = (id: number, field: keyof ScenarioConfig, value: number) => {
