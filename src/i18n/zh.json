@@ -193,10 +193,13 @@
       "capex": "CAPEX",
       "npv": "NPV",
       "payback": "回收期(年)",
-      "irr": "IRR"
+      "irr": "IRR",
+      "action": "操作"
     },
     "pvSyncTip": "修改此值会同步到全部方案档与仿真",
-    "noFeasible": "所有方案在 {{years}} 年寿命内均无法回收投资"
+    "noFeasible": "所有方案在 {{years}} 年寿命内均无法回收投资",
+    "apply": "应用",
+    "appliedMsg": "已应用 {{bess}}kWh 为方案1，请切换到 Simulation 查看"
   },
   "results": {
     "title": "仿真结果",

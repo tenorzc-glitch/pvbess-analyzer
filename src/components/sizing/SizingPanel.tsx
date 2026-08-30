@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, InputNumber, Button, Table, Typography, Spin, Empty, Select, Tooltip } from 'antd';
-import { InfoCircleOutlined } from '@ant-design/icons';
+import { Card, Row, Col, InputNumber, Button, Table, Typography, Spin, Empty, Select, Tooltip, message } from 'antd';
+import { InfoCircleOutlined, CheckOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { runSizingOptimization, SizingRecord, SizingResult } from '../../engine/sizing-engine';
+import { ScenarioConfig } from '../../types';
 import { useTranslation } from 'react-i18next';
 
 const { Title, Text } = Typography;
@@ -52,6 +53,22 @@ export default function SizingPanel() {
       }
       setRunning(false);
     }, 100);
+  };
+
+  // 把寻优结果档应用为可仿真方案：替换 scenarios 为 [该档 + 行业常用 400/600] 并切到 Simulation
+  const applyAsScenario = (rec: SizingRecord) => {
+    const newScenario: ScenarioConfig = {
+      id: 1,
+      name: '',
+      pvCapacity_kWp: rec.scenario.pvCapacity_kWp,
+      bessCapacity_kWh: rec.bessCapacity_kWh,
+      pcsPower_kW: rec.pcsPower_kW,
+    };
+    // 保留其余档位（替换同容量档或插入首位）
+    const rest = scenarios.filter(s => s.bessCapacity_kWh !== rec.bessCapacity_kWh);
+    const merged = [newScenario, ...rest.map((s, i) => ({ ...s, id: i + 2, pvCapacity_kWp: rec.scenario.pvCapacity_kWp }))].slice(0, 6);
+    setScenarios(merged);
+    message.success(t('sizing.appliedMsg', { bess: rec.bessCapacity_kWh }));
   };
 
   const records = result?.records || [];
@@ -110,6 +127,14 @@ export default function SizingPanel() {
     {
       title: t('sizing.table.irr'), dataIndex: ['finance', 'irr'], key: 'irr',
       render: (v: number) => `${(v * 100).toFixed(1)}%`,
+    },
+    {
+      title: t('sizing.table.action'), key: 'action', width: 90,
+      render: (_: unknown, rec: SizingRecord) => (
+        <Button size="small" type="link" icon={<CheckOutlined />} onClick={() => applyAsScenario(rec)}>
+          {t('sizing.apply')}
+        </Button>
+      ),
     },
   ];
 

@@ -193,10 +193,13 @@
       "capex": "CAPEX",
       "npv": "NPV",
       "payback": "Payback (yr)",
-      "irr": "IRR"
+      "irr": "IRR",
+      "action": "Action"
     },
     "pvSyncTip": "Changing this syncs all scenarios and the simulation",
-    "noFeasible": "No scenario recovers investment within the {{years}}-year project life"
+    "noFeasible": "No scenario recovers investment within the {{years}}-year project life",
+    "apply": "Apply",
+    "appliedMsg": "Applied {{bess}}kWh as Scenario 1 — switch to Simulation tab"
   },
   "results": {
     "title": "Simulation Results",
