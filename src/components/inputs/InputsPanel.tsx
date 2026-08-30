@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Card, Form, Input, InputNumber, Select, Slider, Collapse, Row, Col,
@@ -8,6 +9,7 @@ import { InfoCircleOutlined, UploadOutlined, DownloadOutlined, PlusOutlined, Del
 import { useParamsStore, DEFAULT_PARAMS } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useProfileStore } from '../../store/useProfileStore';
+import { useProjectStore } from '../../store/useProjectStore';
 import { ScenarioConfig, InputParams } from '../../types';
 import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
 
@@ -91,6 +93,7 @@ const MONTH_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12
 
 export default function InputsPanel() {
   const { t } = useTranslation();
+  const { id: projectId } = useParams<{ id: string }>();
   const { params, updateParams } = useParamsStore();
   const { scenarios, setScenarios } = useSimulationStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +108,8 @@ export default function InputsPanel() {
 
   const handleDownloadTemplate = () => {
     const { profile, ambientTemp } = useProfileStore.getState();
-    downloadExcelTemplate(params, scenarios, profile, ambientTemp).catch((err) => {
+    const project = useProjectStore.getState().projects.find((p) => p.id === projectId);
+    downloadExcelTemplate(params, scenarios, profile, ambientTemp, project?.country).catch((err) => {
       console.error(err);
       message.error(t('params.downloadTemplate') + ' failed');
     });

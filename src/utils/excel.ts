@@ -55,6 +55,7 @@ const PARAM_ROWS: Array<{ key: string; labelKey: string; unit?: string }> = [
   { key: 'financial.opexGrowth', labelKey: 'excel.rows.opexGrowth' },
   { key: 'financial.taxRate', labelKey: 'excel.rows.taxRate' },
   { key: 'currency.code', labelKey: 'excel.rows.currencyCode', unit: 'BRL | USD | …' },
+  { key: '_meta.country', labelKey: 'excel.rows.country', unit: 'brazil | cn_zhejiang | …' },
 ];
 
 /** 曲线 sheet 标识（A1 隐藏 key，语言无关） */
@@ -123,12 +124,19 @@ function deserializeCell(key: string, raw: any): any {
   return raw;
 }
 
+/** 按 dotted path 取值（_meta.* 伪路径：从调用方上下文取，不进 params） */
+function getMetaValue(key: string, country?: string): any {
+  if (key === '_meta.country') return country ?? '';
+  return undefined;
+}
+
 /** 构建模板工作簿（标签按当前语言生成；A 列 key 隐藏，导入时语言无关） */
 export async function buildTemplateWorkbook(
   params: InputParams,
   scenarios?: ScenarioConfig[],
   profile?: ProfileData | null,
   ambientTemp?: AmbientTempData | null,
+  country?: string,
 ): Promise<ExcelJS.Workbook> {
   const t = i18n.t.bind(i18n);
   const workbook = new ExcelJS.Workbook();
@@ -145,10 +153,13 @@ export async function buildTemplateWorkbook(
   ];
   paramSheet.getRow(1).font = { bold: true };
   for (const row of PARAM_ROWS) {
+    const value = row.key.startsWith('_meta.')
+      ? getMetaValue(row.key, country)
+      : serializeCell(row.key, getPathValue(params, row.key));
     paramSheet.addRow({
       key: row.key,
       label: t(row.labelKey),
-      value: serializeCell(row.key, getPathValue(params, row.key)),
+      value,
       unit: row.unit ?? '',
     });
   }
@@ -215,8 +226,9 @@ export async function downloadExcelTemplate(
   scenarios?: ScenarioConfig[],
   profile?: ProfileData | null,
   ambientTemp?: AmbientTempData | null,
+  country?: string,
 ): Promise<void> {
-  const workbook = await buildTemplateWorkbook(params, scenarios, profile, ambientTemp);
+  const workbook = await buildTemplateWorkbook(params, scenarios, profile, ambientTemp, country);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

@@ -15,13 +15,62 @@ export default function ProjectList() {
   const { t, i18n } = useTranslation();
   const lang = i18n.language?.startsWith('en') ? 'en' : 'zh';
 
-  const COUNTRY_OPTIONS: { value: CountryCode; label: string }[] = [
-    { value: 'brazil', label: t('country.brazil') },
-    { value: 'mexico', label: t('country.mexico') },
-    { value: 'colombia', label: t('country.colombia') },
-    { value: 'chile', label: t('country.chile') },
-    { value: 'peru', label: t('country.peru') },
-    { value: 'custom', label: t('country.custom') },
+  // 国家选项：22 个预设 + custom（分组展示）
+  const COUNTRY_GROUPS: { label: string; options: { value: CountryCode; label: string }[] }[] = [
+    {
+      label: t('country.groupLatam'),
+      options: [
+        { value: 'brazil', label: t('country.brazil') },
+        { value: 'mexico', label: t('country.mexico') },
+        { value: 'colombia', label: t('country.colombia') },
+        { value: 'chile', label: t('country.chile') },
+        { value: 'peru', label: t('country.peru') },
+      ],
+    },
+    {
+      label: t('country.groupChina'),
+      options: [
+        { value: 'cn_zhejiang', label: t('country.cn_zhejiang') },
+        { value: 'cn_jiangsu', label: t('country.cn_jiangsu') },
+        { value: 'cn_guangdong', label: t('country.cn_guangdong') },
+        { value: 'cn_shandong', label: t('country.cn_shandong') },
+      ],
+    },
+    {
+      label: t('country.groupEurope'),
+      options: [
+        { value: 'netherlands', label: t('country.netherlands') },
+        { value: 'germany', label: t('country.germany') },
+        { value: 'italy', label: t('country.italy') },
+        { value: 'poland', label: t('country.poland') },
+        { value: 'ukraine', label: t('country.ukraine') },
+        { value: 'sweden', label: t('country.sweden') },
+        { value: 'spain', label: t('country.spain') },
+        { value: 'bulgaria', label: t('country.bulgaria') },
+      ],
+    },
+    {
+      label: t('country.groupAfrica'),
+      options: [
+        { value: 'south_africa', label: t('country.south_africa') },
+        { value: 'nigeria', label: t('country.nigeria') },
+        { value: 'dr_congo', label: t('country.dr_congo') },
+      ],
+    },
+    {
+      label: t('country.groupAsia'),
+      options: [
+        { value: 'malaysia', label: t('country.malaysia') },
+        { value: 'thailand', label: t('country.thailand') },
+        { value: 'indonesia', label: t('country.indonesia') },
+        { value: 'japan', label: t('country.japan') },
+        { value: 'australia', label: t('country.australia') },
+      ],
+    },
+    {
+      label: t('country.groupOther'),
+      options: [{ value: 'custom', label: t('country.custom') }],
+    },
   ];
 
   const { projects, syncState, cloudMode, loadProjects, addProject, deleteProject } = useProjectStore();
@@ -111,7 +160,7 @@ export default function ProjectList() {
                 description={
                   <Space direction="vertical" size={2}>
                     <Text type="secondary">
-                      {COUNTRY_OPTIONS.find(c => c.value === p.country)?.label || p.country}
+                      {COUNTRY_GROUPS.flatMap(g => g.options).find(c => c.value === p.country)?.label || p.country}
                     </Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {t('project.createdAt')} {new Date(p.createdAt).toLocaleDateString('zh-CN')}
@@ -149,7 +198,7 @@ export default function ProjectList() {
             <Select
               value={newCountry}
               onChange={setNewCountry}
-              options={COUNTRY_OPTIONS}
+              options={COUNTRY_GROUPS}
               style={{ width: '100%', marginTop: 4 }}
             />
             {COUNTRY_PRESETS[newCountry] && (

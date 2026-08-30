@@ -5,8 +5,11 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { useProjectStore } from '../../store/useProjectStore';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
+import { useProfileStore } from '../../store/useProfileStore';
 import { useSimulation } from '../../hooks/useSimulation';
 import { useTranslation } from 'react-i18next';
+import { CountryCode, ProfileData, AmbientTempData } from '../../types';
+import { countryProfileRef, COUNTRY_PRESETS } from '../../data/countries';
 import InputsPanel from '../inputs/InputsPanel';
 import SizingPanel from '../sizing/SizingPanel';
 import ResultsPanel from '../results/ResultsPanel';
@@ -15,6 +18,48 @@ import ComparePanel from '../compare/ComparePanel';
 import ReportPanel from '../report/ReportPanel';
 
 const { Title } = Typography;
+
+/** 通用工商业负荷模板（白班+晚峰，峰值 100kW 标幺；NASA 基线国不含负荷时注入） */
+function genericLoadTemplate(slot: number): number {
+  const h = slot / 4;
+  if (h >= 8 && h < 18) return 100;  // 白班
+  if (h >= 18 && h < 21) return 60;  // 晚峰
+  if (h >= 6 && h < 8) return 40;    // 早班爬坡
+  return 20;                          // 夜间基荷
+}
+
+/** 按国家加载辐照/气温基线（brazil 用实测 JSON，其余用 NASA 国家基线；
+ * NASA 基线不含负荷/电价 → 注入通用工商业模板 + 国家预设电价） */
+async function loadCountryProfile(country: CountryCode): Promise<{ profile: ProfileData | null; ambientTemp: AmbientTempData | null }> {
+  try {
+    const res = await fetch(countryProfileRef(country));
+    const data = await res.json();
+    let profile: ProfileData | null =
+      data.profile && Array.isArray(data.profile) && data.profile.length === 12 ? data.profile : null;
+    const ambientTemp: AmbientTempData | null =
+      data.ambientTemp?.profile && Array.isArray(data.ambientTemp.profile) ? data.ambientTemp : null;
+
+    // NASA 基线（load_kW 全 0）：注入通用工商业负荷 + 国家预设电价
+    if (profile && country !== 'brazil') {
+      const preset = COUNTRY_PRESETS[country];
+      const peakP = preset?.grid.peakPrice_perkWh ?? 1.734;
+      const offP = preset?.grid.offPeakPrice_perkWh ?? 0.748;
+      profile = profile.map((month) =>
+        month.map((iv, slot) => {
+          const h = slot / 4;
+          return {
+            ...iv,
+            load_kW: iv.load_kW > 0 ? iv.load_kW : genericLoadTemplate(slot),
+            gridPrice: iv.gridPrice > 0 ? iv.gridPrice : (h >= 17.5 && h < 20.5 ? peakP : offP),
+          };
+        })
+      );
+    }
+    return { profile, ambientTemp };
+  } catch {
+    return { profile: null, ambientTemp: null };
+  }
+}
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -31,7 +76,7 @@ export default function ProjectDetail() {
 
   useSimulation();
 
-  // 进入项目时：从云端数据初始化参数与方案配置
+  // 进入项目时：从云端数据初始化参数与方案配置 + 按国家加载辐照/气温基线
   useEffect(() => {
     if (project?.params && typeof project.params === 'object' && Object.keys(project.params).length > 0) {
       try { setParams(project.params as any); } catch { /* 数据异常时保持默认 */ }
@@ -39,6 +84,12 @@ export default function ProjectDetail() {
     if (project?.scenarios && Array.isArray(project.scenarios) && project.scenarios.length > 0) {
       try { setScenarios(project.scenarios as any); } catch { /* 保持默认 */ }
     }
+    // 按项目国家加载对应辐照/气温基线（brazil=实测，其余=NASA 国家基线）
+    const country = (project?.country ?? 'brazil') as CountryCode;
+    loadCountryProfile(country).then(({ profile, ambientTemp }) => {
+      if (profile) useProfileStore.getState().setProfile(profile);
+      useProfileStore.getState().setAmbientTemp(ambientTemp);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 

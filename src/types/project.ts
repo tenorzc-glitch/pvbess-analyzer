@@ -1,5 +1,12 @@
-/** 国家代码 */
-export type CountryCode = 'brazil' | 'mexico' | 'colombia' | 'chile' | 'peru' | 'custom';
+/** 国家代码（22 个预设 + custom） */
+export type CountryCode =
+  | 'brazil' | 'mexico' | 'colombia' | 'chile' | 'peru'
+  | 'cn_zhejiang' | 'cn_jiangsu' | 'cn_guangdong' | 'cn_shandong'
+  | 'netherlands' | 'germany' | 'italy' | 'poland' | 'ukraine' | 'sweden'
+  | 'spain' | 'bulgaria'
+  | 'south_africa' | 'nigeria' | 'dr_congo'
+  | 'malaysia' | 'thailand' | 'indonesia' | 'japan' | 'australia'
+  | 'custom';
 
 /** 项目 */
 export interface Project {
