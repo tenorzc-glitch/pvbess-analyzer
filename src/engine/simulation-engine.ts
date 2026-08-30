@@ -160,7 +160,7 @@ function runMonthlySimulation(
     curtailment_kWh: 0, bessCharge_kWh: 0, bessDischarge_kWh: 0, unserved_kWh: 0,
     gridCost: 0, monthPeakGrid_kW: 0, unservedHours: 0,
     pvSelfUse_kWh: 0, pvSelfUseValue: 0, dischargeValue: 0,
-    gridCharge_kWh: 0, gridChargeCost: 0,
+    gridCharge_kWh: 0, gridChargeCost: 0, feedIn_kWh: 0,
   };
 
   const accumulate = (dayIntervals: DispatchInterval[], mult: number) => {
@@ -182,6 +182,7 @@ function runMonthlySimulation(
     totals.dischargeValue += t.dischargeValue * mult;
     totals.gridCharge_kWh += t.gridCharge_kWh * mult;
     totals.gridChargeCost += t.gridChargeCost * mult;
+    totals.feedIn_kWh += t.feedIn_kWh * mult;
     totals.monthPeakGrid_kW = Math.max(totals.monthPeakGrid_kW, t.peakGrid_kW);
   };
 
@@ -327,6 +328,10 @@ function dispatchInterval(
   // 可充功率（供调试用）
   const chargeable = pcsPower; // 简化
 
+  // 馈网上网（开关开启时：弃光转为上网电量，逐时段按 feedInPrice 计价）
+  const feedIn = params.grid.feedInEnabled ? curtailment : 0;
+  const finalCurtailment = curtailment - feedIn;
+
   return {
     pvGen,
     netLoad,
@@ -338,7 +343,8 @@ function dispatchInterval(
     dieselGen,
     dieselFuel,
     gridImport,
-    curtailment,
+    curtailment: finalCurtailment,
+    feedIn,
     unserved,
     socEnd,
     dgStart,
@@ -363,7 +369,7 @@ function sumDayIntervals(
   bessCapacity: number
 ) {
   let pv = 0, load = 0, grid = 0, diesel_kWh = 0, dieselL = 0;
-  let curtail = 0, bessC = 0, bessD = 0, unserved = 0;
+  let curtail = 0, bessC = 0, bessD = 0, unserved = 0, feedInKwh = 0;
   let gridCost = 0, peakGrid = 0, unservedH = 0;
   let pvSelfUse = 0, pvSelfUseValue = 0, dischargeValue = 0;
   let gridChargeKwh = 0, gridChargeCost = 0;
@@ -379,6 +385,7 @@ function sumDayIntervals(
     diesel_kWh += it.dieselGen * stepH;
     dieselL += it.dieselFuel;
     curtail += it.curtailment * stepH;
+    feedInKwh += (it.feedIn || 0) * stepH;
     bessC += it.bessCharge * stepH;
     bessD += it.bessDischarge * stepH;
     unserved += it.unserved * stepH;
@@ -416,6 +423,7 @@ function sumDayIntervals(
     diesel_kWh: diesel_kWh,
     dieselFuel_L: dieselL,
     curtailment_kWh: curtail,
+    feedIn_kWh: feedInKwh,
     bessCharge_kWh: bessC,
     bessDischarge_kWh: bessD,
     unserved_kWh: unserved,
@@ -435,7 +443,7 @@ function computeAnnualSummary(
   scenario: ScenarioConfig,
   monthlyResults: EngineMonthResult[]
 ): EngineAnnualSummary {
-  let pv = 0, load = 0, grid = 0, dieselL = 0, curtail = 0;
+  let pv = 0, load = 0, grid = 0, dieselL = 0, curtail = 0, feedInKwh = 0;
   let bessCycles = 0, peakDemand = 0, totalSoc = 0, socCount = 0;
   let unservedHours = 0;
   let pvSelfUse = 0, pvSelfUseValue = 0, dischargeValue = 0;
@@ -450,6 +458,7 @@ function computeAnnualSummary(
     grid += mr.totals.grid_kWh;
     dieselL += mr.totals.dieselFuel_L;
     curtail += mr.totals.curtailment_kWh;
+    feedInKwh += mr.totals.feedIn_kWh || 0;
     unservedHours += mr.totals.unservedHours || 0;
 
     // BESS 循环次数（放电量 / 容量）
@@ -482,6 +491,7 @@ function computeAnnualSummary(
     gridImport_kWh: grid,
     dieselFuel_L: dieselL,
     curtailment_kWh: curtail,
+    feedIn_kWh: feedInKwh,
     bessCycles,
     peakDemand_kW: peakDemand,
     avgSoc: socCount > 0 ? totalSoc / socCount : 0,

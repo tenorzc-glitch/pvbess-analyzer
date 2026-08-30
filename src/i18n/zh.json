@@ -167,7 +167,10 @@
       "premiumRate": "绿电溢价率"
     },
     "downloadTemplate": "下载模板",
-    "uploadExcel": "上传 Excel"
+    "uploadExcel": "上传 Excel",
+    "feedInEnabled": "馈网上网",
+    "feedInEnabledHint": "开启后富余 PV 上网计价（关闭 = 弃光）",
+    "feedInPrice": "馈网电价"
   },
   "sizing": {
     "title": "定容寻优",

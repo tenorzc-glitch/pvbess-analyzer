@@ -170,6 +170,11 @@ function computeAnnualSaving(
 
   let total = gridSaving + dieselSaving + demandSaving;
 
+  // 馈网上网收益（开关开启时：上网电量 × feedInPrice）
+  if (params.grid.feedInEnabled) {
+    total += (sim.annual.feedIn_kWh || 0) * params.grid.feedInPrice_perkWh;
+  }
+
   // 绿电溢价
   if (params.greenPremium?.enabled) {
     const greenEnergy = sim.annual.pv_kWh; // 光伏发电量

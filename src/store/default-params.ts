@@ -49,6 +49,7 @@ export const DEFAULT_PARAMS: InputParams = {
     peakPrice_perkWh: 1.734,
     offPeakPrice_perkWh: 0.748,
     flatPrice_perkWh: 0.748,
+    feedInEnabled: false,
     feedInPrice_perkWh: 0,
     enablePeakArbitrage: true,
     outage: {

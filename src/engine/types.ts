@@ -28,6 +28,7 @@ export interface DispatchInterval {
   dieselFuel: number;    // 柴油消耗(L)
   gridImport: number;    // 电网购电功率（含 gridCharge）
   curtailment: number;
+  feedIn?: number;       // 馈网上网功率（feedInEnabled 时 = 原弃光功率）
   unserved: number;
   socEnd: number;
   dgStart: number;       // 柴油机本次启动标志
@@ -88,6 +89,7 @@ export interface EngineMonthResult {
     dischargeValue: number;   // 储能放电价值 = Σ bessDischarge×分时电价（仅电网可用时段）
     gridCharge_kWh: number;   // 电网充电电量（谷价套利）
     gridChargeCost: number;   // 电网充电成本 = Σ gridCharge×分时电价
+    feedIn_kWh: number;       // 当月馈网上网电量（feedInEnabled 时）
   };
 }
 
@@ -97,6 +99,7 @@ export interface EngineAnnualSummary {
   gridImport_kWh: number;
   dieselFuel_L: number;
   curtailment_kWh: number;
+  feedIn_kWh: number;         // 全年馈网上网电量（feedInEnabled 时）
   bessCycles: number;
   peakDemand_kW: number;
   avgSoc: number;

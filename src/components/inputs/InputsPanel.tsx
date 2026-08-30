@@ -248,6 +248,26 @@ export default function InputsPanel() {
               </Form.Item>
             </Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label={t('params.feedInEnabled')}>
+                <Switch
+                  checked={params.grid.feedInEnabled ?? false}
+                  onChange={(v) => handleParamChange(['grid', 'feedInEnabled'], v)}
+                />
+                <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>{t('params.feedInEnabledHint')}</Text>
+              </Form.Item>
+            </Col>
+            {params.grid.feedInEnabled && (
+              <Col span={8}>
+                <Form.Item label={t('params.feedInPrice')} help={`${params.currency.symbol}/kWh`}>
+                  <InputNumber value={params.grid.feedInPrice_perkWh}
+                    onChange={(v) => handleParamChange(['grid', 'feedInPrice_perkWh'], v)}
+                    min={0} step={0.01} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            )}
+          </Row>
         </Panel>
 
         {/* 电网停电模型（引擎级注入：停电工作日窗口内电网不可用，储能+油机备电） */}

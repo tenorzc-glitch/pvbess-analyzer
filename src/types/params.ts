@@ -36,7 +36,8 @@ export interface InputParams {
     peakPrice_perkWh: number;
     offPeakPrice_perkWh: number;
     flatPrice_perkWh: number;
-    feedInPrice_perkWh: number;   // 上网电价（0 表示不上网）
+    feedInEnabled: boolean;       // 馈网上网开关（默认 false：富余 PV 弃光）
+    feedInPrice_perkWh: number;   // 上网电价（开关开启时生效）
     enablePeakArbitrage: boolean;
     /** 电网停电模型（引擎级注入，不依赖 profile 的 gridAvailable） */
     outage: {

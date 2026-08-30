@@ -167,7 +167,10 @@
       "premiumRate": "Green Premium Rate"
     },
     "downloadTemplate": "Download Template",
-    "uploadExcel": "Upload Excel"
+    "uploadExcel": "Upload Excel",
+    "feedInEnabled": "Feed-in Export",
+    "feedInEnabledHint": "Excess PV sold to grid (off = curtailment)",
+    "feedInPrice": "Feed-in Price"
   },
   "sizing": {
     "title": "Sizing Optimization",
