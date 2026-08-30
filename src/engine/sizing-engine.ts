@@ -142,8 +142,12 @@ export function runSizingOptimization(
   };
 
   // 找最优（仅能量逻辑档参与，冲击档独立展示）
-  const bestPBP = records.length > 0
-    ? records.reduce((a, b) => (a.finance.paybackStatic < b.finance.paybackStatic ? a : b))
+  // E10 修正：paybackStatic 封顶为 projectLife（表示"寿命内未回收"）。
+  // 全部未回收时 reduce 全相等会误选最差档（如 3000kWh），
+  // 应先过滤可回收记录；无一回收则 bestPBP = null（UI 显示"无经济可行方案"）。
+  const recoverable = records.filter((r) => r.finance.paybackStatic < params.financial.projectLife);
+  const bestPBP = recoverable.length > 0
+    ? recoverable.reduce((a, b) => (a.finance.paybackStatic < b.finance.paybackStatic ? a : b))
     : null;
   const bestNPV = records.length > 0
     ? records.reduce((a, b) => (a.finance.npv > b.finance.npv ? a : b))

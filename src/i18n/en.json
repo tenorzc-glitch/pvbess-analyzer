@@ -195,7 +195,8 @@
       "payback": "Payback (yr)",
       "irr": "IRR"
     },
-    "pvSyncTip": "Changing this syncs all scenarios and the simulation"
+    "pvSyncTip": "Changing this syncs all scenarios and the simulation",
+    "noFeasible": "No scenario recovers investment within the {{years}}-year project life"
   },
   "results": {
     "title": "Simulation Results",

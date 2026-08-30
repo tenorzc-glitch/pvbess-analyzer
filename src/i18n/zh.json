@@ -195,7 +195,8 @@
       "payback": "回收期(年)",
       "irr": "IRR"
     },
-    "pvSyncTip": "修改此值会同步到全部方案档与仿真"
+    "pvSyncTip": "修改此值会同步到全部方案档与仿真",
+    "noFeasible": "所有方案在 {{years}} 年寿命内均无法回收投资"
   },
   "results": {
     "title": "仿真结果",

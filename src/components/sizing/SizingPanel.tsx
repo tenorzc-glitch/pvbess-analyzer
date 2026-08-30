@@ -159,12 +159,14 @@ export default function SizingPanel() {
           <Row gutter={16} style={{ marginBottom: 16 }}>
             <Col span={12}>
               <Card size="small" title={t('sizing.bestPBP')}>
-                {result.bestPBP && (
+                {result.bestPBP ? (
                   <>
                     <Text strong>{result.bestPBP.bessCapacity_kWh} kWh / {result.bestPBP.pcsPower_kW} kW</Text>
                     <br />
                     <Text>{t('sizing.paybackShort')}: {result.bestPBP.finance.paybackStatic.toFixed(2)} {t('common.years')} | NPV: {(result.bestPBP.finance.npv / 1000).toFixed(0)}k</Text>
                   </>
+                ) : (
+                  <Text type="warning">{t('sizing.noFeasible', { years: params.financial.projectLife })}</Text>
                 )}
               </Card>
             </Col>
