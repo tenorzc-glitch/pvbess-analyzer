@@ -23,7 +23,7 @@ export function migrateParams(stored: unknown): InputParams {
 }
 
 /** 可变长度数组字段白名单 */
-const VARIABLE_ARRAY_KEYS = new Set(['rainyMonths', 'rainyOutageDays']);
+const VARIABLE_ARRAY_KEYS = new Set(['rainyMonths', 'rainyOutageDays', 'tariffSegments']);
 
 function isNumericArray(v: unknown): v is number[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'number' && !Number.isNaN(x));
@@ -36,6 +36,11 @@ function mergeInto(target: Record<string, any>, source: Record<string, unknown>)
     const sv = source[key];
 
     if (Array.isArray(tv)) {
+      if (key === 'tariffSegments' && Array.isArray(sv)) {
+        // 对象数组（{start,end,price}）：整体接受
+        target[key] = [...sv];
+        continue;
+      }
       if (!isNumericArray(sv)) continue;
       if (VARIABLE_ARRAY_KEYS.has(key)) {
         target[key] = [...sv];

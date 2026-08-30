@@ -550,7 +550,7 @@ export default function ReportPanel() {
             {secTag('report.tag.flow')}
             {secTitle('report.sec.flowTitle', 'report.sec.flowSub', { pct: pvSelfUsePct.toFixed(0) })}
             <ReactECharts
-              option={buildSankeyOption(t, annual, sim.monthlyResults)}
+              option={buildSankeyOption(t, annual, sim.monthlyResults, { mode: 'year' })}
               style={{ height: 360 }}
             />
             <div style={{

@@ -6,6 +6,7 @@ import { useSimulationStore } from '../../store/useSimulationStore';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { EngineMonthResult } from '../../engine/types';
+import { resolveTariffPrice } from '../../engine/simulation-engine';
 import { scenarioDisplayName } from '../../utils/scenario-name';
 import { buildDispatchOption, buildMonthlySavingOption, buildSankeyOption } from '../../utils/report-charts';
 
@@ -118,10 +119,14 @@ export default function ResultsPanel() {
     return getDispatchChartOption();
   };
 
-  // ─── Sankey 能量流图（option builder 已抽取至 report-charts.ts） ───
-  const getSankeyOption = () => buildSankeyOption(t, scenarioResult?.annual, monthlyTotals);
+  // ─── Sankey 能量流图（跟随日/月/年时间尺度） ───
+  const getSankeyOption = () => buildSankeyOption(t, scenarioResult?.annual, monthlyTotals, {
+    mode: timeScale,
+    month: selectedMonth,
+    monthLabel: MONTHS[selectedMonth - 1],
+  });
 
-  // ─── 分时电价曲线（所选月份，96 个 15min 点） ───
+  // ─── 分时电价曲线（所选月份，96 个 15min 点；tariffSegments 非空时按时段表） ───
   const getTouChartOption = () => {
     const monthProfile = profile?.[selectedMonth - 1] ?? [];
     const times = Array.from({ length: 96 }, (_, i) => {
@@ -129,9 +134,9 @@ export default function ResultsPanel() {
       const m = (i % 4) * 15;
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     });
-    // flat 模式用统一电价；tou 模式优先用 profile 中的分时电价
+    // 优先时段表（tariffSegments），否则 profile 内建电价，最后回落 flat/offPeak
     const prices = monthProfile.length === 96
-      ? monthProfile.map(p => p.gridPrice)
+      ? monthProfile.map((p, slot) => resolveTariffPrice(params, slot * 0.25, p.gridPrice))
       : Array(96).fill(params.grid.tariffType === 'flat' ? params.grid.flatPrice_perkWh : params.grid.offPeakPrice_perkWh);
 
     return {

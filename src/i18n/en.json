@@ -170,7 +170,15 @@
     "uploadExcel": "Upload Excel",
     "feedInEnabled": "Feed-in Export",
     "feedInEnabledHint": "Excess PV sold to grid (off = curtailment)",
-    "feedInPrice": "Feed-in Price"
+    "feedInPrice": "Feed-in Price",
+    "tariffSegments": {
+      "title": "Custom TOU Tariff Periods",
+      "tip": "Set price per period (HH:MM start/end + price). When non-empty, overrides the peak/off-peak pair and profile built-in prices; overnight spans supported (e.g. 22:00→06:00). Clear all = revert to default.",
+      "empty": "Not set (using peak/off-peak pair)",
+      "add": "Add Period",
+      "resetDefault": "Reset to peak/off-peak",
+      "clearAll": "Clear All"
+    }
   },
   "sizing": {
     "title": "Sizing Optimization",
@@ -278,7 +286,8 @@
       "toLoad": "To Load",
       "toBess": "BESS Charge",
       "curtailment": "Curtailment",
-      "loss": "Loss"
+      "loss": "Loss",
+      "feedIn": "Feed-in Export"
     }
   },
   "finance": {

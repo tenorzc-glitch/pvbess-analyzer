@@ -33,6 +33,8 @@ export interface InputParams {
     excessDemandTolerance: number;
     excessDemandRate: number;     // 超需费率（通常是需量费的 N 倍）
     tariffType: 'tou' | 'flat';
+    /** 自定义分时电价时段表（非空时覆盖 profile 内建电价；空 = 沿用 profile/峰谷两档） */
+    tariffSegments?: Array<{ start: string; end: string; price: number }>;
     peakPrice_perkWh: number;
     offPeakPrice_perkWh: number;
     flatPrice_perkWh: number;

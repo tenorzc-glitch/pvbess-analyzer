@@ -170,7 +170,15 @@
     "uploadExcel": "上传 Excel",
     "feedInEnabled": "馈网上网",
     "feedInEnabledHint": "开启后富余 PV 上网计价（关闭 = 弃光）",
-    "feedInPrice": "馈网电价"
+    "feedInPrice": "馈网电价",
+    "tariffSegments": {
+      "title": "自定义分时电价时段",
+      "tip": "按时段逐条设置电价（HH:MM 起止 + 价格）。非空时覆盖上方峰/谷两档和 profile 内建电价；支持跨午夜（如 22:00→06:00）。清空 = 恢复默认。",
+      "empty": "未设置（沿用峰/谷两档电价）",
+      "add": "添加时段",
+      "resetDefault": "恢复峰谷两档",
+      "clearAll": "清空全部"
+    }
   },
   "sizing": {
     "title": "定容寻优",
@@ -278,7 +286,8 @@
       "toLoad": "供给负荷",
       "toBess": "储能充电",
       "curtailment": "弃光",
-      "loss": "损耗"
+      "loss": "损耗",
+      "feedIn": "馈网上网"
     }
   },
   "finance": {

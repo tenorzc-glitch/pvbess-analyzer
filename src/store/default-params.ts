@@ -46,6 +46,7 @@ export const DEFAULT_PARAMS: InputParams = {
     excessDemandTolerance: 0.05,
     excessDemandRate: 90,
     tariffType: 'tou',
+    tariffSegments: [],
     peakPrice_perkWh: 1.734,
     offPeakPrice_perkWh: 0.748,
     flatPrice_perkWh: 0.748,

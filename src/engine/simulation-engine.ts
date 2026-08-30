@@ -52,6 +52,38 @@ export function parseOutageWindow(windowStart: string, stepH: number): number {
   );
 }
 
+/** 解析时段表得到某时刻电价（tariffSegments 非空时生效；无匹配则回落 profile 原价） */
+export function resolveTariffPrice(
+  params: InputParams,
+  hourFloat: number,
+  fallbackPrice: number
+): number {
+  const segs = params.grid.tariffSegments;
+  if (!segs || segs.length === 0) return fallbackPrice;
+  for (const seg of segs) {
+    const [sh, sm] = (seg.start || '00:00').split(':').map(Number);
+    const [eh, em] = (seg.end || '24:00').split(':').map(Number);
+    const startH = sh + (sm || 0) / 60;
+    let endH = eh + (em || 0) / 60;
+    if (endH <= startH) endH += 24; // 跨午夜
+    const h = hourFloat < startH && endH > 24 ? hourFloat + 24 : hourFloat;
+    if (h >= startH && h < endH) return seg.price;
+  }
+  return fallbackPrice;
+}
+
+/** 按 tariffSegments 重写 profile 各时段电价（返回新 profile，不改原对象） */
+export function applyTariffSegments(params: InputParams, profile: ProfileData): ProfileData {
+  const segs = params.grid.tariffSegments;
+  if (!segs || segs.length === 0) return profile;
+  return profile.map((month) =>
+    month.map((iv, slot) => ({
+      ...iv,
+      gridPrice: resolveTariffPrice(params, slot * params.timeStep, iv.gridPrice),
+    }))
+  );
+}
+
 /** 生成停电日 profile：窗口内时段 gridAvailable=false（不改动原 profile） */
 function buildOutageProfile(
   monthProfile: ProfileInterval[],
@@ -95,7 +127,7 @@ export function runScenarioSimulation(
   const monthlyResults: EngineMonthResult[] = [];
 
   for (let m = 0; m < 12; m++) {
-    const monthProfile = profile[m];
+    const monthProfile = applyTariffSegments(params, [profile[m]])[0];
     if (!monthProfile || monthProfile.length === 0) continue;
 
     const result = runMonthlySimulation(params, scenario, monthProfile, m + 1);
@@ -534,7 +566,7 @@ export function computeBaseline(
   const outageStart = parseOutageWindow(outageCfg?.windowStart || '17:30', stepH);
 
   for (let m = 0; m < 12; m++) {
-    const monthProfile = profile[m];
+    const monthProfile = applyTariffSegments(params, [profile[m]])[0];
     if (!monthProfile || monthProfile.length === 0) continue;
     // 基准与场景侧同口径：停运日低负荷平坦运行（电网供电）；停电工作日窗口内油机备电
     const days = DAYS_PER_MONTH[m];

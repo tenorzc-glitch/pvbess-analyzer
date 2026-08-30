@@ -4,15 +4,75 @@ import {
   Card, Form, Input, InputNumber, Select, Slider, Collapse, Row, Col,
   Typography, Divider, Space, Tag, Table, Button, Tooltip, Switch, message
 } from 'antd';
-import { InfoCircleOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { InfoCircleOutlined, UploadOutlined, DownloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useParamsStore, DEFAULT_PARAMS } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useProfileStore } from '../../store/useProfileStore';
-import { ScenarioConfig } from '../../types';
+import { ScenarioConfig, InputParams } from '../../types';
 import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
+
+/** 分时电价时段编辑器：增删行、时间+价格编辑、一键恢复默认两档 */
+function TariffSegmentsEditor({ params, onChange }: {
+  params: InputParams;
+  onChange: (path: string[], value: any) => void;
+}) {
+  const { t } = useTranslation();
+  const segs = params.grid.tariffSegments ?? [];
+
+  const update = (next: Array<{ start: string; end: string; price: number }>) =>
+    onChange(['grid', 'tariffSegments'], next);
+
+  const setRow = (i: number, field: 'start' | 'end' | 'price', v: any) => {
+    const next = segs.map((s, j) => (j === i ? { ...s, [field]: v } : s));
+    update(next);
+  };
+  const addRow = () => update([...segs, { start: '17:30', end: '20:30', price: params.grid.peakPrice_perkWh }]);
+  const removeRow = (i: number) => update(segs.filter((_, j) => j !== i));
+  const resetDefault = () => update([
+    { start: '00:00', end: '17:30', price: params.grid.offPeakPrice_perkWh },
+    { start: '17:30', end: '20:30', price: params.grid.peakPrice_perkWh },
+    { start: '20:30', end: '24:00', price: params.grid.offPeakPrice_perkWh },
+  ]);
+
+  return (
+    <div>
+      {segs.length === 0 && (
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+          {t('params.tariffSegments.empty')}
+        </Text>
+      )}
+      {segs.map((seg, i) => (
+        <Space key={i} style={{ marginBottom: 8 }} wrap>
+          <Input
+            size="small" style={{ width: 80 }} value={seg.start} placeholder="HH:MM"
+            onChange={(e) => setRow(i, 'start', e.target.value)}
+          />
+          <Text type="secondary">→</Text>
+          <Input
+            size="small" style={{ width: 80 }} value={seg.end} placeholder="HH:MM"
+            onChange={(e) => setRow(i, 'end', e.target.value)}
+          />
+          <InputNumber
+            size="small" style={{ width: 110 }} value={seg.price} min={0} step={0.01}
+            onChange={(v) => setRow(i, 'price', v ?? 0)}
+            addonAfter={`${params.currency.symbol}/kWh`}
+          />
+          <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeRow(i)} />
+        </Space>
+      ))}
+      <Space style={{ marginTop: 4 }}>
+        <Button size="small" icon={<PlusOutlined />} onClick={addRow}>{t('params.tariffSegments.add')}</Button>
+        <Button size="small" type="link" onClick={resetDefault}>{t('params.tariffSegments.resetDefault')}</Button>
+        {segs.length > 0 && (
+          <Button size="small" type="link" danger onClick={() => update([])}>{t('params.tariffSegments.clearAll')}</Button>
+        )}
+      </Space>
+    </div>
+  );
+}
 
 /** 支持的货币选项（名称经 i18n 渲染，避免英文模式残留中文） */
 const CURRENCY_OPTIONS = [
@@ -268,6 +328,14 @@ export default function InputsPanel() {
               </Col>
             )}
           </Row>
+          {/* 自定义分时电价时段表（非空时覆盖 profile 内建电价与峰/谷两档） */}
+          <Divider style={{ margin: '12px 0' }} plain>
+            {t('params.tariffSegments.title')}
+            <Tooltip title={t('params.tariffSegments.tip')}>
+              <InfoCircleOutlined style={{ marginLeft: 6, color: '#8c8c8c' }} />
+            </Tooltip>
+          </Divider>
+          <TariffSegmentsEditor params={params} onChange={handleParamChange} />
         </Panel>
 
         {/* 电网停电模型（引擎级注入：停电工作日窗口内电网不可用，储能+油机备电） */}

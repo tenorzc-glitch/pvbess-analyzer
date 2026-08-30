@@ -143,27 +143,97 @@ export function buildMonthlySavingOption(
 /** 数值缩写（Sankey 标签）：≥1000 → k */
 const fmtK = (v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v.toFixed(0)}`);
 
+/** 桑基流量数据（年/月/日共用结构） */
+interface SankeyFlows {
+  pvSelfUse: number;
+  bessCharge: number;  // PV/柴油富余充电（AC 口径）
+  gridCharge: number;  // 电网充电（谷价套利）
+  diesel: number;
+  curtail: number;
+  feedIn: number;      // 馈网上网（feedInEnabled 时）
+  grid: number;
+}
+
+/** 从年度汇总聚合（年尺度） */
+function aggregateYearFlows(annual: EngineAnnualSummary, monthlyResults: EngineMonthResult[]): SankeyFlows {
+  return {
+    pvSelfUse: annual.pvSelfUse_kWh || 0,
+    bessCharge: monthlyResults.reduce((s, m) => s + m.totals.bessCharge_kWh, 0),
+    gridCharge: annual.gridCharge_kWh || 0,
+    diesel: monthlyResults.reduce((s, m) => s + m.totals.diesel_kWh, 0),
+    curtail: annual.curtailment_kWh || 0,
+    feedIn: annual.feedIn_kWh || 0,
+    grid: annual.gridImport_kWh || 0,
+  };
+}
+
+/** 从月度 totals 聚合（月尺度） */
+function aggregateMonthFlows(m: EngineMonthResult): SankeyFlows {
+  return {
+    pvSelfUse: m.totals.pvSelfUse_kWh || 0,
+    bessCharge: m.totals.bessCharge_kWh || 0,
+    gridCharge: m.totals.gridCharge_kWh || 0,
+    diesel: m.totals.diesel_kWh || 0,
+    curtail: m.totals.curtailment_kWh || 0,
+    feedIn: m.totals.feedIn_kWh || 0,
+    grid: m.totals.grid_kWh || 0,
+  };
+}
+
+/** 从典型日 96 点逐时段聚合（日尺度，stepH=0.25h） */
+function aggregateDayFlows(m: EngineMonthResult): SankeyFlows {
+  const stepH = 0.25;
+  const f: SankeyFlows = { pvSelfUse: 0, bessCharge: 0, gridCharge: 0, diesel: 0, curtail: 0, feedIn: 0, grid: 0 };
+  for (const it of m.intervals) {
+    const loadKW = it.netLoad + it.pvGen;
+    if (it.gridAvailable) {
+      f.pvSelfUse += Math.min(it.pvGen, Math.max(loadKW, 0)) * stepH;
+      f.gridCharge += it.gridCharge * stepH;
+    }
+    f.bessCharge += it.bessCharge * stepH;
+    f.diesel += it.dieselGen * stepH;
+    f.curtail += it.curtailment * stepH;
+    f.feedIn += (it.feedIn || 0) * stepH;
+    f.grid += it.gridImport * stepH;
+  }
+  return f;
+}
+
 /**
- * 年能量流 Sankey（批次 R3 重构）：
- * - 更名：充电 → 储能充电、电池放电 → 储能放电
- * - 新增电网→储能充电流（谷价套利的日末恢复充电口径）
- * - 节点色块 + 名称/数值（K 缩写）标签 + 渐变流带（参考客户提供的样式）
+ * 能量流 Sankey（R3 重构 + 时间尺度联动）：
+ * - mode: year=全年汇总 / month=所选月份 / day=所选月典型日
+ * - 含馈网上网流（PV → 馈网，feedInEnabled 时）
+ * - 节点色块 + 名称/数值（K 缩写）标签 + 渐变流带
  */
 export function buildSankeyOption(
   t: TFunction,
   annual: EngineAnnualSummary | undefined,
   monthlyResults: EngineMonthResult[],
+  opts?: { mode?: 'year' | 'month' | 'day'; month?: number; monthLabel?: string },
 ) {
-  if (!annual) return {};
+  const mode = opts?.mode ?? 'year';
+  const monthIdx = (opts?.month ?? 1) - 1;
+  const monthResult = monthlyResults[monthIdx];
 
-  const bessDischarge = monthlyResults.reduce((s, m) => s + m.totals.bessDischarge_kWh, 0);
-  const bessCharge = monthlyResults.reduce((s, m) => s + m.totals.bessCharge_kWh, 0); // PV/柴油富余充电（逐槽 AC 口径）
-  const gridCharge = annual.gridCharge_kWh || 0; // 日末恢复充电（谷价电网）
-  const dieselKWh = monthlyResults.reduce((s, m) => s + m.totals.diesel_kWh, 0);
-  const curtail = annual.curtailment_kWh || 0;
-  const grid = annual.gridImport_kWh || 0;
-  const pvSelfUse = annual.pvSelfUse_kWh || 0;
+  let flows: SankeyFlows | null = null;
+  if (mode === 'year') {
+    if (!annual) return {};
+    flows = aggregateYearFlows(annual, monthlyResults);
+  } else if (mode === 'month') {
+    if (!monthResult) return {};
+    flows = aggregateMonthFlows(monthResult);
+  } else {
+    if (!monthResult?.intervals?.length) return {};
+    flows = aggregateDayFlows(monthResult);
+  }
+
+  const { pvSelfUse, bessCharge, gridCharge, diesel: dieselKWh, curtail, feedIn, grid } = flows;
   const totalCharge = bessCharge + gridCharge;
+  const bessDischarge = mode === 'year'
+    ? monthlyResults.reduce((s, m) => s + m.totals.bessDischarge_kWh, 0)
+    : mode === 'month'
+      ? monthResult.totals.bessDischarge_kWh || 0
+      : monthResult.intervals.reduce((s, it) => s + it.bessDischarge * 0.25, 0);
   const loss = Math.max(totalCharge - bessDischarge, 0);
 
   const N = {
@@ -171,9 +241,10 @@ export function buildSankeyOption(
     grid: t('results.sankey.gridImport'),
     diesel: t('results.sankey.dieselGen'),
     load: t('results.sankey.toLoad'),
-    charge: t('results.sankey.toBess'),      // 储能充电
-    discharge: t('results.sankey.bessDischarge'), // 储能放电
+    charge: t('results.sankey.toBess'),
+    discharge: t('results.sankey.bessDischarge'),
     curtail: t('results.sankey.curtailment'),
+    feedIn: t('results.sankey.feedIn'),
     loss: t('results.sankey.loss'),
   };
 
@@ -185,6 +256,7 @@ export function buildSankeyOption(
     { name: N.charge, itemStyle: { color: '#52c41a' } },
     { name: N.discharge, itemStyle: { color: '#13c2c2' } },
     { name: N.curtail, itemStyle: { color: '#bfbfbf' } },
+    { name: N.feedIn, itemStyle: { color: '#2f54eb' } },
     { name: N.loss, itemStyle: { color: '#eb2f96' } },
   ];
 
@@ -192,6 +264,7 @@ export function buildSankeyOption(
     { source: N.pv, target: N.load, value: +pvSelfUse.toFixed(0) },
     { source: N.pv, target: N.charge, value: +bessCharge.toFixed(0) },
     { source: N.pv, target: N.curtail, value: +curtail.toFixed(0) },
+    { source: N.pv, target: N.feedIn, value: +feedIn.toFixed(0) },
     { source: N.grid, target: N.load, value: +Math.max(grid - gridCharge, 0).toFixed(0) },
     { source: N.grid, target: N.charge, value: +gridCharge.toFixed(0) },
     { source: N.charge, target: N.discharge, value: +bessDischarge.toFixed(0) },
@@ -200,8 +273,10 @@ export function buildSankeyOption(
     { source: N.diesel, target: N.load, value: +dieselKWh.toFixed(0) },
   ].filter(l => l.value > 0);
 
+  const scopeSuffix = mode === 'year' ? '' : ` — ${opts?.monthLabel ?? ''}${mode === 'day' ? ` ${t('results.timeScale.day')}` : ''}`;
+
   return {
-    title: { text: `${t('results.sankey.title')} (kWh)`, left: 'center' },
+    title: { text: `${t('results.sankey.title')}${scopeSuffix} (kWh)`, left: 'center' },
     tooltip: { trigger: 'item', valueFormatter: (v: any) => `${Number(v).toLocaleString()} kWh` },
     series: [
       {
@@ -209,8 +284,6 @@ export function buildSankeyOption(
         emphasis: { focus: 'adjacency' },
         data: nodes,
         links,
-        // 顶部留白避免与居中标题重叠（节点标签含数值两行文字）；
-        // 右侧留白容纳右缘节点的外置标签（如 供给负荷 785.1k）
         top: 64,
         bottom: 16,
         left: 12,
