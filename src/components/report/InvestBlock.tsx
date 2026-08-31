@@ -8,7 +8,7 @@ import { TFunction } from 'i18next';
 import ReactECharts from 'echarts-for-react';
 import { FinanceResult } from '../../types/finance';
 import { ReportFx } from '../../utils/report-fx';
-import { buildPaybackCashflowOption } from '../../utils/report-charts';
+import { buildPaybackCashflowOption, applyChartTextStyle, CHART_TEXT_LIGHT_BG } from '../../utils/report-charts';
 
 interface InvestBlockProps {
   t: TFunction;
@@ -63,7 +63,7 @@ export default function InvestBlock({ t, fin, capexPV, capexBESS, fx }: InvestBl
         <CapexCard label={t('report.invest.capexBESS')} value={fx.money(capexBESS)} bar="#13c2c2" />
         <CapexCard label={t('report.invest.capexTotal')} value={fx.money(fin.capex)} bar="#1677ff" />
       </div>
-      <ReactECharts option={buildPaybackCashflowOption(t, fin, 10, fx)} style={{ height: 320 }} />
+      <ReactECharts option={applyChartTextStyle(buildPaybackCashflowOption(t, fin, 10, fx), CHART_TEXT_LIGHT_BG)} style={{ height: 320 }} />
       <Table
         size="small"
         pagination={false}

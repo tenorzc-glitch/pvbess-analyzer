@@ -21,6 +21,41 @@ import { FinanceResult } from '../types/finance';
 import { monthlyDemandCharge } from '../engine/simulation-engine';
 import { ReportFx, fmtMoneyShort } from './report-fx';
 
+/**
+ * 图表文字色主题适配层：
+ * ECharts 默认文字深色（#333），深色主题下不可读。
+ * 深色背景面板 → 纯白文字；浅色/报告白底 → 深色文字。
+ * 统一处理 legend / 坐标轴标签 / 标题三类文字（系列色不动）。
+ */
+export function applyChartTextStyle(option: any, textColor: string): any {
+  if (!option || typeof option !== 'object') return option;
+  const o = JSON.parse(JSON.stringify(option));
+  if (o.legend) {
+    o.legend.textStyle = { ...(o.legend.textStyle || {}), color: textColor };
+  }
+  const applyAxis = (ax: any) => {
+    if (!ax) return;
+    const list = Array.isArray(ax) ? ax : [ax];
+    for (const a of list) {
+      a.axisLabel = { ...(a.axisLabel || {}), color: textColor };
+      a.nameTextStyle = { ...(a.nameTextStyle || {}), color: textColor };
+    }
+  };
+  applyAxis(o.xAxis);
+  applyAxis(o.yAxis);
+  if (o.title) {
+    const titles = Array.isArray(o.title) ? o.title : [o.title];
+    for (const t of titles) {
+      t.textStyle = { ...(t.textStyle || {}), color: textColor };
+    }
+  }
+  return o;
+}
+
+/** 主题色常量：深色面板用白字，浅色/报告用黑字 */
+export const CHART_TEXT_DARK_BG = 'rgba(255,255,255,0.92)';
+export const CHART_TEXT_LIGHT_BG = '#262626';
+
 /** 典型日 15min 调度曲线（负荷/PV/充放/购电/柴油/SOC + 部署前后峰值双虚线） */
 export function buildDispatchOption(
   t: TFunction,

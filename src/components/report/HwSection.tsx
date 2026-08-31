@@ -14,7 +14,7 @@ import {
   BrandParams, HWEstimate, computeFactorAttribution, computeThroughput10Kwh,
 } from '../../utils/brand';
 import { ReportFx, fmtMoneyShort } from '../../utils/report-fx';
-import { buildWaterfallOption, WaterfallItem } from '../../utils/report-charts';
+import { buildWaterfallOption, WaterfallItem, applyChartTextStyle, CHART_TEXT_LIGHT_BG } from '../../utils/report-charts';
 
 const NAVY = '#0b2545';
 
@@ -123,11 +123,11 @@ export default function HwSection(p: HwSectionProps) {
       <div style={{ display: 'flex', gap: 12, marginBottom: 6 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#595959', textAlign: 'center' }}>{t('report.hw.wf.thrTitle')}</div>
-          <ReactECharts option={buildWaterfallOption(thrItems, { unit: 'MWh', fmt: (v) => v.toFixed(0) })} style={{ height: 250 }} />
+          <ReactECharts option={applyChartTextStyle(buildWaterfallOption(thrItems, { unit: 'MWh', fmt: (v) => v.toFixed(0) }), CHART_TEXT_LIGHT_BG)} style={{ height: 250 }} />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#595959', textAlign: 'center' }}>{t('report.hw.wf.npvTitle')}</div>
-          <ReactECharts option={buildWaterfallOption(npvItems, { unit: fx.sym, fmt: fmtMoneyShort })} style={{ height: 250 }} />
+          <ReactECharts option={applyChartTextStyle(buildWaterfallOption(npvItems, { unit: fx.sym, fmt: fmtMoneyShort }), CHART_TEXT_LIGHT_BG)} style={{ height: 250 }} />
         </div>
       </div>
       <div style={{ fontSize: 11, color: '#8c8c8c', marginBottom: 12, textAlign: 'right' }}>

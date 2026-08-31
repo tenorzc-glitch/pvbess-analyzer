@@ -5,10 +5,11 @@ import ReactECharts from 'echarts-for-react';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useParamsStore } from '../../store/useParamsStore';
 import { useProfileStore } from '../../store/useProfileStore';
+import { useAuth } from '../../hooks/useAuth';
 import { EngineMonthResult } from '../../engine/types';
 import { resolveTariffPrice } from '../../engine/simulation-engine';
 import { scenarioDisplayName } from '../../utils/scenario-name';
-import { buildDispatchOption, buildMonthlySavingOption, buildSankeyOption } from '../../utils/report-charts';
+import { buildDispatchOption, buildMonthlySavingOption, buildSankeyOption, applyChartTextStyle, CHART_TEXT_DARK_BG, CHART_TEXT_LIGHT_BG } from '../../utils/report-charts';
 
 const { Text } = Typography;
 
@@ -118,6 +119,10 @@ export default function ResultsPanel() {
     if (timeScale === 'year') return getYearChartOption();
     return getDispatchChartOption();
   };
+
+  // 主题文字色：深色面板白字，浅色面板黑字
+  const { user } = useAuth();
+  const chartTextColor = (user?.theme ?? 'dark') === 'dark' ? CHART_TEXT_DARK_BG : CHART_TEXT_LIGHT_BG;
 
   // ─── Sankey 能量流图（跟随日/月/年时间尺度） ───
   const getSankeyOption = () => buildSankeyOption(t, scenarioResult?.annual, monthlyTotals, {
@@ -318,22 +323,22 @@ export default function ResultsPanel() {
             </Radio.Group>
           </Col>
         </Row>
-        <ReactECharts option={getDispatchOption()} style={{ height: 380 }} notMerge={true} />
+        <ReactECharts option={applyChartTextStyle(getDispatchOption(), chartTextColor)} style={{ height: 380 }} notMerge={true} />
       </Card>
 
       {/* 分时电价（日尺度时跟随所选月份） */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={getTouChartOption()} style={{ height: 260 }} notMerge={true} />
+        <ReactECharts option={applyChartTextStyle(getTouChartOption(), chartTextColor)} style={{ height: 260 }} notMerge={true} />
       </Card>
 
       {/* Sankey 能量流图 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={getSankeyOption()} style={{ height: 360 }} notMerge={true} />
+        <ReactECharts option={applyChartTextStyle(getSankeyOption(), chartTextColor)} style={{ height: 360 }} notMerge={true} />
       </Card>
 
       {/* 月度节省费用 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={getMonthlySavingOption()} style={{ height: 300 }} notMerge={true} />
+        <ReactECharts option={applyChartTextStyle(getMonthlySavingOption(), chartTextColor)} style={{ height: 300 }} notMerge={true} />
       </Card>
 
       {/* 方案对比表 */}

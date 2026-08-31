@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Card, Row, Col, Table, Statistic, Spin, Empty, Typography, Button, Space, message, Checkbox } from 'antd';
 import { DownloadOutlined, FileExcelOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
+import { useAuth } from '../../hooks/useAuth';
+import { applyChartTextStyle, CHART_TEXT_DARK_BG, CHART_TEXT_LIGHT_BG } from '../../utils/report-charts';
 import { useTranslation } from 'react-i18next';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useFinanceStore } from '../../store/useFinanceStore';
@@ -18,6 +20,8 @@ export default function FinancePanel() {
   const { results, scenarios, isRunning: simRunning } = useSimulationStore();
   const { results: financeResults, isRunning: finRunning } = useFinanceStore();
   const { params } = useParamsStore();
+  const { user } = useAuth();
+  const chartTextColor = (user?.theme ?? 'dark') === 'dark' ? CHART_TEXT_DARK_BG : CHART_TEXT_LIGHT_BG;
 
   // 报告导出选项
   const [reportIncludeGreen, setReportIncludeGreen] = useState(true);
@@ -260,12 +264,12 @@ export default function FinancePanel() {
 
       {/* NPV 柱状图 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={npvChartOption} style={{ height: 300 }} notMerge={true} />
+        <ReactECharts option={applyChartTextStyle(npvChartOption, chartTextColor)} style={{ height: 300 }} notMerge={true} />
       </Card>
 
       {/* 累计现金流 */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <ReactECharts option={cashflowChartOption} style={{ height: 300 }} notMerge={true} />
+        <ReactECharts option={applyChartTextStyle(cashflowChartOption, chartTextColor)} style={{ height: 300 }} notMerge={true} />
       </Card>
 
       {/* 断电损失 */}
@@ -289,7 +293,7 @@ export default function FinancePanel() {
               />
             </Col>
             <Col span={12}>
-              <ReactECharts option={outageChartOption} style={{ height: 120 }} notMerge={true} />
+              <ReactECharts option={applyChartTextStyle(outageChartOption, chartTextColor)} style={{ height: 120 }} notMerge={true} />
             </Col>
           </Row>
         </Card>

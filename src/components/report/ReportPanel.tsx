@@ -30,6 +30,7 @@ import { createReportFx, DEFAULT_FX_RATE, ReportCurrencyCode } from '../../utils
 import {
   buildDispatchOption, buildMonthlySavingOption, buildSankeyOption,
   buildCostCompareOption, computeTenYearMetrics,
+  applyChartTextStyle, CHART_TEXT_LIGHT_BG,
 } from '../../utils/report-charts';
 import CoverBlock from './CoverBlock';
 import InvestBlock from './InvestBlock';
@@ -457,7 +458,7 @@ export default function ReportPanel() {
               <li>{t('report.strategy.s8', { peak: `${fx.to(params.grid.peakPrice_perkWh).toFixed(3)} ${fx.sym}`, offpeak: `${fx.to(params.grid.offPeakPrice_perkWh).toFixed(3)} ${fx.sym}` })}</li>
             </ul>
             <ReactECharts
-              option={buildDispatchOption(t, monthResult, params.grid.contractDemand_kW, MONTHS[repMonth - 1], true)}
+              option={applyChartTextStyle(buildDispatchOption(t, monthResult, params.grid.contractDemand_kW, MONTHS[repMonth - 1], true), CHART_TEXT_LIGHT_BG)}
               style={{ height: 340 }}
             />
           </section>
@@ -510,7 +511,7 @@ export default function ReportPanel() {
             </Row>
             {/* RR 案例风格：年度费用构成对比（横向堆叠条 + 净节省标注） */}
             <ReactECharts
-              option={buildCostCompareOption(t, fin, annual, firstYear?.opex ?? 0, fx.sym)}
+              option={applyChartTextStyle(buildCostCompareOption(t, fin, annual, firstYear?.opex ?? 0, fx.sym), CHART_TEXT_LIGHT_BG)}
               style={{ height: 210 }}
             />
             <Table
@@ -539,7 +540,7 @@ export default function ReportPanel() {
               <Col span={8}><Statistic title={t('report.savings.firstYearNet')} value={fx.money(firstYear?.netCashflow ?? 0)} /></Col>
             </Row>
             <ReactECharts
-              option={buildMonthlySavingOption(t, sim.monthlyResults, params, MONTHS, baselines?.[0])}
+              option={applyChartTextStyle(buildMonthlySavingOption(t, sim.monthlyResults, params, MONTHS, baselines?.[0]), CHART_TEXT_LIGHT_BG)}
               style={{ height: 260 }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>{t('report.savings.note')}</Text>
@@ -550,7 +551,7 @@ export default function ReportPanel() {
             {secTag('report.tag.flow')}
             {secTitle('report.sec.flowTitle', 'report.sec.flowSub', { pct: pvSelfUsePct.toFixed(0) })}
             <ReactECharts
-              option={buildSankeyOption(t, annual, sim.monthlyResults, { mode: 'year' })}
+              option={applyChartTextStyle(buildSankeyOption(t, annual, sim.monthlyResults, { mode: 'year' }), CHART_TEXT_LIGHT_BG)}
               style={{ height: 360 }}
             />
             <div style={{
