@@ -1,5 +1,17 @@
 import { InputParams } from '../types/params';
 
+/** 支持的货币选项（名称经 i18n 渲染） */
+export const CURRENCY_OPTIONS = [
+  { value: 'BRL', symbol: 'R$', locale: 'pt-BR' },
+  { value: 'USD', symbol: '$', locale: 'en-US' },
+  { value: 'EUR', symbol: '€', locale: 'de-DE' },
+  { value: 'CNY', symbol: '¥', locale: 'zh-CN' },
+  { value: 'MXN', symbol: 'MX$', locale: 'es-MX' },
+  { value: 'COP', symbol: 'COP$', locale: 'es-CO' },
+  { value: 'CLP', symbol: 'CLP$', locale: 'es-CL' },
+  { value: 'PEN', symbol: 'S/', locale: 'es-PE' },
+];
+
 /**
  * 货币换算工具（展示层/编辑层）：
  * 汇率表定义 = 1 单位外币 = X BRL（BRL=1 为基准）。
@@ -37,6 +49,27 @@ function setPath(obj: any, path: string, value: any): void {
     cur = cur[keys[i]];
   }
   cur[keys[keys.length - 1]] = value;
+}
+
+/** 品牌参数中的货币量纲字段（FALLBACK 为 BRL 口径） */
+export const BRAND_MONEY_FIELDS = [
+  'costPerKWh',
+  'coolantCostPerEvent',
+  'calibrationVisitCost',
+  'warrantyCostPerKWhYear',
+] as const;
+
+/** 换算一组品牌参数（返回新对象，不改原值） */
+export function convertBrandMoney<T extends Record<string, any>>(brand: T, factor: number): T {
+  if (factor === 1) return brand;
+  const next = { ...brand };
+  for (const f of BRAND_MONEY_FIELDS) {
+    const v = next[f];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      (next as any)[f] = +(v * factor).toFixed(4);
+    }
+  }
+  return next;
 }
 
 /** 有效汇率（缺失时回落 1，并警告） */

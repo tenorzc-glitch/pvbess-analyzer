@@ -7,6 +7,7 @@ import { useSimulationStore } from '../../store/useSimulationStore';
 import { useTranslation } from 'react-i18next';
 import { Project, CountryCode } from '../../types';
 import { applyCountryPreset, COUNTRY_PRESETS } from '../../data/countries';
+import { convertCurrencyParams, CURRENCY_OPTIONS } from '../../utils/currency';
 
 const { Title, Text } = Typography;
 
@@ -77,6 +78,7 @@ export default function ProjectList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCountry, setNewCountry] = useState<CountryCode>('brazil');
+  const [newCurrency, setNewCurrency] = useState<string>('BRL');
   const [creating, setCreating] = useState(false);
 
   // 进入页面时加载项目（在线从云端，离线从缓存）
@@ -85,9 +87,29 @@ export default function ProjectList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 国家变更时货币跟随预设（用户可再改）
+  useEffect(() => {
+    const preset = COUNTRY_PRESETS[newCountry];
+    if (preset) setNewCurrency(preset.currency.code);
+  }, [newCountry]);
+
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
+    // 国家预设（含预设币种价格）
+    let params = applyCountryPreset(newCountry);
+    // 若用户改了货币：按汇率表换算预设价格到目标币种
+    const presetCode = COUNTRY_PRESETS[newCountry]?.currency.code ?? 'BRL';
+    if (newCurrency !== presetCode) {
+      const from = params.exchangeRates?.[presetCode] ?? 1;
+      const to = params.exchangeRates?.[newCurrency] ?? 1;
+      params = convertCurrencyParams(params, presetCode, newCurrency);
+      const opt = CURRENCY_OPTIONS.find((o) => o.value === newCurrency);
+      params.currency = opt
+        ? { code: opt.value, symbol: opt.symbol, locale: opt.locale }
+        : { code: newCurrency, symbol: newCurrency, locale: 'en-US' };
+      void from; void to;
+    }
     const project: Project = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       name: newName.trim(),
@@ -95,8 +117,7 @@ export default function ProjectList() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: 'draft',
-      // 按国家+行业应用预设参数（用户仍可修改）
-      params: applyCountryPreset(newCountry),
+      params,
       scenarios: useSimulationStore.getState().scenarios,
     };
     const saved = await addProject(project);
@@ -206,6 +227,21 @@ export default function ProjectList() {
                 {t('project.presetApplied')} — {COUNTRY_PRESETS[newCountry]!.note[lang]}
               </Text>
             )}
+          </div>
+          <div>
+            <Text strong>{t('params.currency')}</Text>
+            <Select
+              value={newCurrency}
+              onChange={setNewCurrency}
+              style={{ width: '100%', marginTop: 4 }}
+              options={CURRENCY_OPTIONS.map((o) => ({
+                value: o.value,
+                label: `${o.value} ${o.symbol}`,
+              }))}
+            />
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+              {t('project.currencyNote')}
+            </Text>
           </div>
         </Space>
       </Modal>

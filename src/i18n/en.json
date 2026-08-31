@@ -55,7 +55,8 @@
     "createdAt": "Created on",
     "presetApplied": "Country industry presets applied (editable)",
     "untitled": "Untitled Project",
-    "notLoggedIn": "Not logged in"
+    "notLoggedIn": "Not logged in",
+    "currencyNote": "Defaults to the country preset currency; if changed, preset prices auto-convert per the rate table"
   },
   "country": {
     "brazil": "Brazil",

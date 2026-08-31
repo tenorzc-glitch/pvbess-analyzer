@@ -6,13 +6,14 @@ import {
   Typography, Divider, Space, Tag, Table, Button, Tooltip, Switch, message
 } from 'antd';
 import { InfoCircleOutlined, UploadOutlined, DownloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useParamsStore, DEFAULT_PARAMS } from '../../store/useParamsStore';
+import { useParamsStore } from '../../store/useParamsStore';
 import { useSimulationStore } from '../../store/useSimulationStore';
 import { useProfileStore } from '../../store/useProfileStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { ScenarioConfig, InputParams } from '../../types';
 import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
-import { convertCurrencyParams } from '../../utils/currency';
+import { convertCurrencyParams, convertBrandMoney, CURRENCY_OPTIONS } from '../../utils/currency';
+import { useBrandStore } from '../../store/useBrandStore';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -76,18 +77,6 @@ function TariffSegmentsEditor({ params, onChange }: {
     </div>
   );
 }
-
-/** 支持的货币选项（名称经 i18n 渲染，避免英文模式残留中文） */
-const CURRENCY_OPTIONS = [
-  { value: 'BRL', symbol: 'R$', locale: 'pt-BR' },
-  { value: 'USD', symbol: '$', locale: 'en-US' },
-  { value: 'EUR', symbol: '€', locale: 'de-DE' },
-  { value: 'CNY', symbol: '¥', locale: 'zh-CN' },
-  { value: 'MXN', symbol: 'MX$', locale: 'es-MX' },
-  { value: 'COP', symbol: 'COP$', locale: 'es-CO' },
-  { value: 'CLP', symbol: 'CLP$', locale: 'es-CL' },
-  { value: 'PEN', symbol: 'S/', locale: 'es-PE' },
-];
 
 const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MONTH_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
@@ -553,11 +542,18 @@ export default function InputsPanel() {
                   onChange={(code) => {
                     const opt = CURRENCY_OPTIONS.find(o => o.value === code);
                     if (opt) {
-                      // 先按汇率表换算所有单价，再切货币（数值随币别联动）
-                      const converted = convertCurrencyParams(params, params.currency.code, opt.value);
+                      const from = params.currency.code;
+                      const factor = (params.exchangeRates?.[from] ?? 1) / (params.exchangeRates?.[opt.value] ?? 1);
+                      // 1) 换算 params 全部单价（16 字段 + tariffSegments）
+                      const converted = convertCurrencyParams(params, from, opt.value);
                       converted.currency = { code: opt.value, symbol: opt.symbol, locale: opt.locale };
                       updateParams(converted);
-                      message.info(t('params.currencyConverted', { from: params.currency.code, to: opt.value }));
+                      // 2) 同步换算品牌参数（costPerKWh 等 4 个货币字段）
+                      const { brands } = useBrandStore.getState();
+                      useBrandStore.getState().setBrands(
+                        brands.map((b) => ({ ...b, params: convertBrandMoney(b.params, factor) }))
+                      );
+                      message.info(t('params.currencyConverted', { from, to: opt.value }));
                     }
                   }}
                   options={CURRENCY_OPTIONS.map(o => ({
