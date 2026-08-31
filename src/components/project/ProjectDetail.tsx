@@ -87,7 +87,19 @@ export default function ProjectDetail() {
     // 按项目国家加载对应辐照/气温基线（brazil=实测，其余=NASA 国家基线）
     const country = (project?.country ?? 'brazil') as CountryCode;
     loadCountryProfile(country).then(({ profile, ambientTemp }) => {
-      if (profile) useProfileStore.getState().setProfile(profile);
+      if (profile) {
+        // 数据源的电价为源币种（brazil=BRL；NASA=国家预设币种），
+        // 若项目货币不同则按汇率表换算到项目币种——保持 params 与 profile 同币种
+        const projParams = (project?.params ?? {}) as any;
+        const projCode: string = projParams?.currency?.code ?? COUNTRY_PRESETS[country]?.currency.code ?? 'BRL';
+        const srcCode: string = COUNTRY_PRESETS[country]?.currency.code ?? 'BRL';
+        const rates: Record<string, number> = projParams?.exchangeRates ?? {};
+        const factor = srcCode !== projCode ? (rates[srcCode] ?? 1) / (rates[projCode] ?? 1) : 1;
+        const finalProfile = factor === 1 ? profile : profile.map((month) =>
+          month.map((iv) => ({ ...iv, gridPrice: +(iv.gridPrice * factor).toFixed(6) }))
+        );
+        useProfileStore.getState().setProfile(finalProfile);
+      }
       useProfileStore.getState().setAmbientTemp(ambientTemp);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

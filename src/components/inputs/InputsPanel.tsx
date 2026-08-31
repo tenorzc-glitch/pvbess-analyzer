@@ -553,6 +553,16 @@ export default function InputsPanel() {
                       useBrandStore.getState().setBrands(
                         brands.map((b) => ({ ...b, params: convertBrandMoney(b.params, factor) }))
                       );
+                      // 3) 同步换算 profile 逐时段电价（与 params 同为货币量纲——
+                      // 否则峰段判定 prof.gridPrice >= peakPrice 混合两种货币，调度全乱）
+                      const { profile } = useProfileStore.getState();
+                      if (profile) {
+                        useProfileStore.getState().setProfile(
+                          profile.map((month) =>
+                            month.map((iv) => ({ ...iv, gridPrice: +(iv.gridPrice * factor).toFixed(6) }))
+                          )
+                        );
+                      }
                       message.info(t('params.currencyConverted', { from, to: opt.value }));
                     }
                   }}
