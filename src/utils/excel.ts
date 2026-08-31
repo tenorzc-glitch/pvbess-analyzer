@@ -55,6 +55,12 @@ const PARAM_ROWS: Array<{ key: string; labelKey: string; unit?: string }> = [
   { key: 'financial.opexGrowth', labelKey: 'excel.rows.opexGrowth' },
   { key: 'financial.taxRate', labelKey: 'excel.rows.taxRate' },
   { key: 'currency.code', labelKey: 'excel.rows.currencyCode', unit: 'BRL | USD | …' },
+  { key: 'exchangeRates.USD', labelKey: 'excel.rows.fxUSD', unit: 'BRL/USD' },
+  { key: 'exchangeRates.EUR', labelKey: 'excel.rows.fxEUR', unit: 'BRL/EUR' },
+  { key: 'exchangeRates.CNY', labelKey: 'excel.rows.fxCNY', unit: 'BRL/CNY' },
+  { key: 'exchangeRates.MXN', labelKey: 'excel.rows.fxMXN', unit: 'BRL/MXN' },
+  { key: 'exchangeRates.AUD', labelKey: 'excel.rows.fxAUD', unit: 'BRL/AUD' },
+  { key: 'exchangeRates.JPY', labelKey: 'excel.rows.fxJPY', unit: 'BRL/JPY' },
   { key: '_meta.country', labelKey: 'excel.rows.country', unit: 'brazil | cn_zhejiang | …' },
 ];
 

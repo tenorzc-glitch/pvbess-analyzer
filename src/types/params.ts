@@ -113,6 +113,10 @@ export interface InputParams {
     locale: string;                // 'pt-BR' | 'es-MX' | 'en-US' | ...
   };
 
+  /** 静态汇率表：1 单位外币 = X BRL（BRL 为基准=1）。
+   * 切换货币时所有单价字段按 rate[from]/rate[to] 换算；模板中可编辑后上传刷新 */
+  exchangeRates: Record<string, number>;
+
   sohCurve: number[];              // SOH 衰减曲线（长度应等于 projectLife）
   selectedScheme: number;          // Dashboard 显示方案序号
 }

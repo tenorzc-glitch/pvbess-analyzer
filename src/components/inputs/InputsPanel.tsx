@@ -12,6 +12,7 @@ import { useProfileStore } from '../../store/useProfileStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { ScenarioConfig, InputParams } from '../../types';
 import { downloadExcelTemplate, parseExcelUpload } from '../../utils/excel';
+import { convertCurrencyParams } from '../../utils/currency';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -551,7 +552,13 @@ export default function InputsPanel() {
                   value={params.currency.code}
                   onChange={(code) => {
                     const opt = CURRENCY_OPTIONS.find(o => o.value === code);
-                    if (opt) handleParamChange(['currency'], { code: opt.value, symbol: opt.symbol, locale: opt.locale });
+                    if (opt) {
+                      // 先按汇率表换算所有单价，再切货币（数值随币别联动）
+                      const converted = convertCurrencyParams(params, params.currency.code, opt.value);
+                      converted.currency = { code: opt.value, symbol: opt.symbol, locale: opt.locale };
+                      updateParams(converted);
+                      message.info(t('params.currencyConverted', { from: params.currency.code, to: opt.value }));
+                    }
                   }}
                   options={CURRENCY_OPTIONS.map(o => ({
                     value: o.value,
@@ -559,6 +566,25 @@ export default function InputsPanel() {
                   }))}
                   style={{ width: '100%' }}
                 />
+              </Form.Item>
+            </Col>
+            <Col span={18}>
+              <Form.Item label={t('params.exchangeRates')} help={t('params.exchangeRatesHelp')}>
+                <Space wrap size={8}>
+                  {Object.entries(params.exchangeRates ?? {}).map(([code, rate]) => (
+                    <span key={code} style={{ fontSize: 12 }}>
+                      <Text type="secondary">{code}</Text>
+                      <InputNumber
+                        size="small"
+                        style={{ width: 90, marginLeft: 4 }}
+                        value={rate}
+                        min={0}
+                        step={code === 'IDR' || code === 'COP' || code === 'CDF' || code === 'NGN' ? 0.0001 : 0.01}
+                        onChange={(v) => handleParamChange(['exchangeRates', code], v ?? 1)}
+                      />
+                    </span>
+                  ))}
+                </Space>
               </Form.Item>
             </Col>
           </Row>

@@ -121,6 +121,30 @@ export const DEFAULT_PARAMS: InputParams = {
     locale: 'pt-BR',
   },
 
+  /** 静态汇率表（1 单位外币 = X BRL，2026-08 参考值，可手动修改） */
+  exchangeRates: {
+    BRL: 1,
+    USD: 5.07,
+    EUR: 5.50,
+    CNY: 0.70,
+    MXN: 0.27,
+    COP: 0.0012,
+    CLP: 0.0054,
+    PEN: 1.35,
+    ZAR: 0.28,
+    NGN: 0.0033,
+    CDF: 0.0018,
+    MYR: 1.10,
+    THB: 0.15,
+    IDR: 0.00032,
+    JPY: 0.034,
+    AUD: 3.30,
+    PLN: 1.30,
+    UAH: 0.12,
+    SEK: 0.48,
+    BGN: 2.81,
+  },
+
   sohCurve: [
     1.000, 0.975, 0.950, 0.925, 0.900,
     0.875, 0.850, 0.825, 0.800, 0.775,
